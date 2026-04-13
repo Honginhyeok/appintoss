@@ -103,6 +103,9 @@ model User {
   settlementAccount String?
   settlementName    String?
 
+  // --- SUBSCRIPTION INFO ---
+  isSubscribed      Boolean       @default(false)
+  subscriptionTier  String        @default("FREE")
   
   invitations    Invitation[]
   announcements  Announcement[]
