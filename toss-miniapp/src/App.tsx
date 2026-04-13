@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { TDSProvider } from './components/tds';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Login } from './pages/Login';
 import { Payment } from './pages/Payment';
 import { Settings } from './pages/Settings';
@@ -8,6 +9,9 @@ import { AdminUserManagement } from './pages/AdminUserManagement';
 import { Rooms } from './pages/Rooms';
 import { Tenants } from './pages/Tenants';
 import { InviteTenant } from './pages/InviteTenant';
+import { TransactionHistory } from './pages/TransactionHistory';
+import { PaymentStatus } from './pages/PaymentStatus';
+import { HealthCheck } from './pages/HealthCheck';
 
 /** 인증되지 않았으면 /login 으로 리다이렉트 */
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -45,9 +49,11 @@ function AppNavbar() {
     ...(isLandlord ? [
       { path: '/rooms', label: '방', icon: '🚪' },
       { path: '/tenants', label: '세입자', icon: '👤' },
-      { path: '/invitations', label: '초대', icon: '🎫' },
-    ] : []),
-    { path: '/payment', label: '납부', icon: '💳' },
+      { path: '/transactions', label: '거래', icon: '📊' },
+      { path: '/payment-status', label: '납부', icon: '💳' },
+    ] : [
+      { path: '/payment', label: '납부', icon: '💳' },
+    ]),
     { path: '/settings', label: '설정', icon: '⚙️' },
   ];
 
@@ -101,6 +107,9 @@ function AppContent() {
         <Route path="/rooms" element={<PrivateRoute><Rooms /></PrivateRoute>} />
         <Route path="/tenants" element={<PrivateRoute><Tenants /></PrivateRoute>} />
         <Route path="/invitations" element={<PrivateRoute><InviteTenant /></PrivateRoute>} />
+        <Route path="/transactions" element={<PrivateRoute><TransactionHistory /></PrivateRoute>} />
+        <Route path="/payment-status" element={<PrivateRoute><PaymentStatus /></PrivateRoute>} />
+        <Route path="/health" element={<PrivateRoute><HealthCheck /></PrivateRoute>} />
       </Routes>
     </div>
   );
@@ -108,13 +117,15 @@ function AppContent() {
 
 function App() {
   return (
-    <TDSProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
-      </AuthProvider>
-    </TDSProvider>
+    <ErrorBoundary>
+      <TDSProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <AppContent />
+          </BrowserRouter>
+        </AuthProvider>
+      </TDSProvider>
+    </ErrorBoundary>
   );
 }
 
