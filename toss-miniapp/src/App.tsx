@@ -6,6 +6,8 @@ import { Payment } from './pages/Payment';
 import { Settings } from './pages/Settings';
 import { AdminUserManagement } from './pages/AdminUserManagement';
 import { Rooms } from './pages/Rooms';
+import { Tenants } from './pages/Tenants';
+import { InviteTenant } from './pages/InviteTenant';
 
 /** 인증되지 않았으면 /login 으로 리다이렉트 */
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -41,8 +43,9 @@ function AppNavbar() {
 
   const navItems = [
     ...(isLandlord ? [
-      { path: '/rooms', label: '방 관리', icon: '🚪' },
-      { path: '/admin', label: '임차인', icon: '👤' },
+      { path: '/rooms', label: '방', icon: '🚪' },
+      { path: '/tenants', label: '세입자', icon: '👤' },
+      { path: '/invitations', label: '초대', icon: '🎫' },
     ] : []),
     { path: '/payment', label: '납부', icon: '💳' },
     { path: '/settings', label: '설정', icon: '⚙️' },
@@ -96,6 +99,8 @@ function AppContent() {
         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
         <Route path="/admin" element={<PrivateRoute><AdminUserManagement /></PrivateRoute>} />
         <Route path="/rooms" element={<PrivateRoute><Rooms /></PrivateRoute>} />
+        <Route path="/tenants" element={<PrivateRoute><Tenants /></PrivateRoute>} />
+        <Route path="/invitations" element={<PrivateRoute><InviteTenant /></PrivateRoute>} />
       </Routes>
     </div>
   );
