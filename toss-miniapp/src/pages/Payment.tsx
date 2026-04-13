@@ -17,8 +17,48 @@ export function Payment() {
 
   const handleTossSend = () => {
     setSheetOpen(false);
-    const tossUrl = `supertoss://send?bank=${encodeURIComponent(bank)}&account=${encodeURIComponent(account)}&amount=${amount}`;
-    window.location.href = tossUrl;
+
+    try {
+      // 미니앱 환경 식별: window에 Toss 앱 객체가 붙어있는지 확인
+      // 또는 navigator.userAgent.includes('Toss') 활용
+      const isTossApp = /Toss/i.test(navigator.userAgent) || !!(window as any).Toss;
+      
+      if (isTossApp) {
+        // 미니앱 공식 SDK 송금 브릿지 호출 (app-in-toss/web-bridge 대용)
+        import('@apps-in-toss/web-bridge').then((m) => {
+          const bridge: any = m;
+          // 보통 named export 거나 클래스 형식일 수 있으므로 sendMoney()가 존재하는지 체크 후 실행
+          if (bridge && typeof bridge.sendMoney === 'function') {
+            bridge.sendMoney({
+              bank: bank,
+              accountNumber: account,
+              amount: parseInt(amount, 10),
+            }).catch((err: any) => console.error('송금 브릿지 에러:', err));
+          } else if (bridge.default && typeof bridge.default.sendMoney === 'function') {
+            bridge.default.sendMoney({
+              bank: bank,
+              accountNumber: account,
+              amount: parseInt(amount, 10),
+            }).catch((err: any) => console.error('송금 브릿지 에러:', err));
+          } else {
+            fallbackCopy();
+          }
+        }).catch(() => {
+          // Fallback if import fails
+          fallbackCopy();
+        });
+      } else {
+        // 일반 브라우저 구동 시 예외 처리 (Fallback)
+        fallbackCopy();
+      }
+    } catch (e) {
+      fallbackCopy();
+    }
+  };
+
+  const fallbackCopy = () => {
+    navigator.clipboard.writeText(`${bank} ${account}`);
+    alert(`사장님의 계좌번호(${bank} ${account})가 클립보드에 복사되었습니다.\n이용하시는 은행 앱에서 송금해 주세요.`);
   };
 
   const handleTossPayments = () => {
