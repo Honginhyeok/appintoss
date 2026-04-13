@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Room {
+  id           String        @id @default(uuid())
+  name         String
+  floor        Int?
+  area         Float?
+  status       String        @default("VACANT") // VACANT | OCCUPIED | MAINTENANCE
+  monthlyRent  Float?
+  rentType     String        @default("MONTHLY") // MONTHLY | YEARLY | CUSTOM
+  deposit      Float?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  userId       String?
+  user         User?         @relation(fields: [userId], references: [id])
+  tenants      Tenant[]
+  transactions Transaction[]
+  assignedUsers User[]       @relation("TenantRoom")
+}
+
+model Tenant {
+  id          String    @id @default(uuid())
+  name        String
+  phone       String
+  roomId      String?
+  room        Room?     @relation(fields: [roomId], references: [id])
+  moveInDate          DateTime?
+  moveOutDate         DateTime?
+  deposit             Float?
+  rentType            String    @default("MONTHLY") // MONTHLY | YEARLY | CUSTOM
+  rentAmount          Float?    // Replaces monthlyRent
+  rentPaymentDay      Int?      // e.g. 15 for '15th of every month'
+  customRentStartDate DateTime?
+  customRentEndDate   DateTime?
+  notes               String?
+  createdAt           DateTime  @default(now())
+  userId              String?   // THIS IS THE LANDLORD ID (Who created the record)
+  user                User?     @relation(fields: [userId], references: [id])
+  loginUserId         String?   @unique // THIS IS THE TENANT ACCOUNT ID
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  roomId      String?
+  room        Room?    @relation(fields: [roomId], references: [id])
+  type        String   // INCOME | EXPENSE
+  category    String   // RENT | MAINTENANCE | UTILITY | DEPOSIT | TAX | CLEANING | OTHER
+  amount      Float
+  description String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+}
+
+model NotificationLog {
+  id            String    @id @default(uuid())
+  tenantId      String
+  useCase       String
+  channel       String
+  status        String
+  sentAt        DateTime?
+  failureReason String?
+  isManual      Boolean   @default(false)
+  content       String    @default("")
+  createdAt     DateTime  @default(now())
+}
+
+model User {
+  id            String        @id @default(uuid())
+  username      String        @unique
+  name          String?
+  password      String
+  plainPassword String?
+  email         String?
+  phone         String?
+  role          String        @default("USER")    // ADMIN | USER
+  status        String        @default("PENDING") // PENDING | ACTIVE | SUSPENDED
+  isActive      Boolean       @default(true)      // 초대코드 삭제 시 false로 비활성화
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  rooms         Room[]
+  tenants       Tenant[]
+  transactions  Transaction[]
+
+  // --- TENANT Management ---
+  landlordId    String?
+  landlord      User?         @relation("LandlordTenants", fields: [landlordId], references: [id])
+  tenantUsers   User[]        @relation("LandlordTenants")
+  roomId        String?
+  assignedRoom  Room?         @relation("TenantRoom", fields: [roomId], references: [id])
+  
+  // --- SETTLEMENT INFO (for Landlords) ---
+  settlementBank    String?
+  settlementAccount String?
+  settlementName    String?
+
+  
+  invitations    Invitation[]
+  announcements  Announcement[]
+  maintenanceReq MaintenanceRequest[] @relation("TenantRequests")
+  subscriptions  PushSubscription[]   @relation("UserSubscriptions")
+}
+
+model Invitation {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  landlordId  String
+  landlord    User     @relation(fields: [landlordId], references: [id])
+  tenantId    String?  // Reference to physical Tenant record
+  isUsed      Boolean  @default(false)
+  usedBy      String?  
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
+model Announcement {
+  id          String   @id @default(uuid())
+  title       String
+  content     String
+  targetType  String   @default("ALL") // ALL | SPECIFIC
+  targetRooms String?  // JSON stringified array of room IDs
+  landlordId  String
+  landlord    User     @relation(fields: [landlordId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model MaintenanceRequest {
+  id          String   @id @default(uuid())
+  title       String
+  content     String
+  status      String   @default("PENDING") // PENDING | IN_PROGRESS | RESOLVED
+  tenantId    String   // User ID of the Tenant who created it
+  tenant      User     @relation("TenantRequests", fields: [tenantId], references: [id])
+  landlordId  String   // User ID of the Landlord receiving it
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PushSubscription {
+  id         String   @id @default(uuid())
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userId     String
+  user       User     @relation("UserSubscriptions", fields: [userId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+model PaymentRequest {
+  id              String   @id @default(uuid())
+  tenantUserId    String 
+  landlordId      String
+  tenantRecordId  String?  // reference to Tenant model
+  category        String   @default("RENT") // RENT | MAINTENANCE_FEE | REPAIR | DEPOSIT | OTHER
+  amount          Float
+  memo            String?
+  status          String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model BellNotification {
+  id          String   @id @default(uuid())
+  userId      String   // 알림 수신자 (임대인 또는 임차인)
+  type        String   // PAYMENT | MAINTENANCE | ANNOUNCEMENT | SYSTEM
+  message     String
+  actionTab   String?  // 클릭 시 이동할 탭 (payments, maintenance 등)
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}

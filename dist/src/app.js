@@ -1,0 +1,42 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
+const path_1 = __importDefault(require("path"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
+const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
+const adminRoutes_1 = __importDefault(require("./routes/adminRoutes"));
+const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
+const roomRoutes_1 = __importDefault(require("./routes/roomRoutes"));
+const tenantRoutes_1 = __importDefault(require("./routes/tenantRoutes"));
+const transactionRoutes_1 = __importDefault(require("./routes/transactionRoutes"));
+const summaryRoutes_1 = __importDefault(require("./routes/summaryRoutes"));
+const notificationRoutes_1 = __importDefault(require("./routes/notificationRoutes"));
+const invitationRoutes_1 = __importDefault(require("./routes/invitationRoutes"));
+const boardRoutes_1 = __importDefault(require("./routes/boardRoutes"));
+const webpushRoutes_1 = __importDefault(require("./routes/webpushRoutes"));
+const paymentRoutes_1 = __importDefault(require("./routes/paymentRoutes"));
+const bellNotificationRoutes_1 = __importDefault(require("./routes/bellNotificationRoutes"));
+const app = (0, express_1.default)();
+app.use((0, cors_1.default)({ origin: true, credentials: true }));
+app.use(express_1.default.json());
+app.use((0, cookie_parser_1.default)());
+app.use(express_1.default.static(path_1.default.join(__dirname, '../public')));
+// Set up routes
+app.use('/api/auth', authRoutes_1.default);
+app.use('/api/admin', adminRoutes_1.default);
+app.use('/api/users', userRoutes_1.default);
+app.use('/api/rooms', roomRoutes_1.default);
+app.use('/api/tenants', tenantRoutes_1.default);
+app.use('/api/transactions', transactionRoutes_1.default);
+app.use('/api/summary', summaryRoutes_1.default);
+app.use('/api', notificationRoutes_1.default); // Handles /api/logs and /api/notify
+app.use('/api/invitations', invitationRoutes_1.default);
+app.use('/api/board', boardRoutes_1.default);
+app.use('/api/webpush', webpushRoutes_1.default);
+app.use('/api/payments', paymentRoutes_1.default);
+app.use('/api/bell-notifications', bellNotificationRoutes_1.default);
+exports.default = app;

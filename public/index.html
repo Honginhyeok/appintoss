@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>체크인사장님 | 숙소 관리 솔루션</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=13">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    /* Login Overlay - DEFAULT VISIBLE (진입점 = 로그인) */
+    #login-overlay {
+      display: flex;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      background: #0f172a;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999 !important;
+    }
+
+    #login-overlay.authenticated {
+      display: none !important;
+    }
+
+    .login-box {
+      width: 100%;
+      max-width: 420px;
+      padding: 48px 40px;
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Auth-dependent elements: hidden until login */
+    .auth-only {
+      display: none !important;
+    }
+    body.logged-in .auth-only {
+      display: flex !important;
+    }
+
+    .admin-only.hidden {
+      display: none !important;
+    }
+
+    .landlord-only.hidden {
+      display: none !important;
+    }
+
+    .tenant-only.hidden {
+      display: none !important;
+    }
+
+    /* Auth 로딩 스피너 */
+    #auth-loading-spinner {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99998;
+      flex-direction: column;
+      gap: 16px;
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+    }
+    #auth-loading-spinner .spinner-ring {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(255,255,255,0.15);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #app-content {
+      visibility: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Auth 로딩 중 스피너 (checkAuth 완료 후 자동 제거) -->
+  <div id="auth-loading-spinner">
+    <div class="spinner-ring"></div>
+    <span>인증 확인 중...</span>
+  </div>
+
+  <div id="app-content">
+  <div class="app">
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-icon" style="font-size:22px">🏠</span>
+        <span class="logo-text" style="letter-spacing: 0.5px;">체크인사장님</span>
+      </div>
+      <ul class="nav-list">
+        <li class="nav-item active landlord-only" data-tab="summary" onclick="showTab('summary')">
+          <span class="nav-icon">📊</span><span>대시보드</span>
+        </li>
+        <li class="nav-item landlord-only" data-tab="rooms" onclick="showTab('rooms')">
+          <span class="nav-icon">🚪</span><span>방 관리</span>
+        </li>
+        <li class="nav-item landlord-only" data-tab="tenants" onclick="showTab('tenants')">
+          <span class="nav-icon">👤</span><span>세입자</span>
+        </li>
+        <li class="nav-item landlord-only" data-tab="transactions" onclick="showTab('transactions')">
+          <span class="nav-icon">💰</span><span>수입/지출</span>
+        </li>
+        <li class="nav-item landlord-only" data-tab="notifications" onclick="showTab('notifications')">
+          <span class="nav-icon">🔔</span><span>알림 발송</span>
+        </li>
+        <li class="nav-item landlord-only" data-tab="invitations" onclick="showTab('invitations')">
+          <span class="nav-icon">🎫</span><span>초대 관리</span>
+        </li>
+        <li class="nav-item" data-tab="announcements" onclick="showTab('announcements')">
+          <span class="nav-icon">📢</span><span>공지사항</span>
+        </li>
+        <li class="nav-item" data-tab="maintenance" onclick="showTab('maintenance')">
+          <span class="nav-icon">🛠️</span><span>수리 문의</span>
+        </li>
+        <li class="nav-item" data-tab="payments" onclick="showTab('payments')">
+          <span class="nav-icon">💡</span><span>입금 확인</span>
+        </li>
+        <li class="nav-item admin-only hidden" data-tab="users" onclick="showTab('users')">
+          <span class="nav-icon">👥</span><span>사용자 관리</span>
+        </li>
+      </ul>
+      <div style="flex:1"></div>
+      <!-- 사이드바 하단: mt-auto 효과 (flex:1 spacer) -->
+      <div class="sidebar-bottom-group" style="border-top: 1px solid rgba(255,255,255,0.06); padding: 8px 0;">
+        <div id="profile-btn" class="auth-only"
+          style="padding:12px 20px;cursor:pointer;color:var(--sidebar-text);font-size:13px;display:flex;align-items:center;gap:12px;transition:all 0.15s;"
+          onclick="openModal('profile-modal')">
+          <span class="nav-icon">⚙️</span><span id="profile-username">내 정보</span>
+        </div>
+        <div id="logout-btn" class="auth-only"
+          style="padding:12px 20px;cursor:pointer;color:var(--sidebar-text);display:flex;align-items:center;gap:12px;transition:all 0.15s;"
+          onmouseover="this.style.color='white';this.style.background='rgba(244,63,94,0.15)'" onmouseout="this.style.color='var(--sidebar-text)';this.style.background='transparent'">
+          <span class="nav-icon">🚪</span><span>로그아웃</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Mobile Tab Bar -->
+    <nav class="tab-bar">
+      <button class="tab-btn active landlord-only" data-tab="summary"
+        onclick="showTab('summary')">📊<span>요약</span></button>
+      <button class="tab-btn landlord-only" data-tab="rooms" onclick="showTab('rooms')">🚪<span>방</span></button>
+      <button class="tab-btn landlord-only" data-tab="tenants" onclick="showTab('tenants')">👤<span>세입자</span></button>
+      <button class="tab-btn landlord-only" data-tab="transactions"
+        onclick="showTab('transactions')">💰<span>수지</span></button>
+      <button class="tab-btn" data-tab="announcements" onclick="showTab('announcements')">📢<span>공지</span></button>
+      <button class="tab-btn" data-tab="maintenance" onclick="showTab('maintenance')">🛠️<span>문의</span></button>
+      <button class="tab-btn" data-tab="payments" onclick="showTab('payments')">💡<span>입금</span></button>
+      <button class="tab-btn admin-only hidden" data-tab="users" onclick="showTab('users')">👥<span>사용자</span></button>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- 상단 우측 헤더: 로그인 후에만 표시 -->
+      <div class="global-header-actions auth-only" style="position: sticky; top: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 10px 20px; display: flex; justify-content: flex-end; align-items: center; gap: 8px; z-index: 100; border-bottom: 1px solid var(--border); margin: -28px -28px 20px -28px;">
+        
+        <!-- 알림 벨 UI -->
+        <div style="position: relative;" id="notification-wrapper">
+          <button id="notification-bell-btn" class="btn btn-ghost" style="position: relative; padding: 8px; border-radius: 50%;" onclick="toggleNotificationDropdown(event)">
+            <span style="font-size: 18px;">🔔</span>
+            <span style="position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%; border: 2px solid white;"></span>
+          </button>
+          
+          <!-- 알림 드롭다운 -->
+          <div id="notification-dropdown" class="hidden notification-dropdown-box">
+            <div style="font-size: 14px; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);">알림</div>
+            <div style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 20px 0;">새로운 알림이 없습니다.</div>
+          </div>
+        </div>
+
+        <button id="mobile-profile-btn" class="btn btn-ghost" style="font-weight: 600; background: white;" onclick="openModal('profile-modal')">
+          <span class="nav-icon">⚙️</span><span id="mobile-profile-username">내 정보</span>
+        </button>
+        <button id="mobile-logout-btn" class="btn btn-primary" style="font-weight: 600; box-shadow: 0 2px 10px rgba(59,130,246,0.3);" onclick="logout()">
+          <span class="nav-icon" style="color:white">🚪</span><span style="color:white">로그아웃</span>
+        </button>
+      </div>
+
+      <!-- ═══ SUMMARY TAB ════════════════════════════════════════ -->
+      <section id="tab-summary" class="tab-content active">
+        <div class="page-header">
+          <h1>📊 대시보드</h1>
+          <p class="page-subtitle">실시간 숙소 현황 요약</p>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-card income">
+            <div class="stat-label">총 수입</div>
+            <div class="stat-value" id="total-income">₩0</div>
+          </div>
+          <div class="stat-card expense">
+            <div class="stat-label">총 지출</div>
+            <div class="stat-value" id="total-expense">₩0</div>
+          </div>
+          <div class="stat-card profit">
+            <div class="stat-label">순이익</div>
+            <div class="stat-value" id="net-profit">₩0</div>
+          </div>
+          <div class="stat-card rooms">
+            <div class="stat-label">방 현황</div>
+            <div class="stat-value" id="room-status">0/0</div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="chart-row">
+          <div class="card">
+            <div class="card-header">
+              <h2>📊 올해 예상 수입 비교</h2>
+            </div>
+            <div class="chart-container">
+              <canvas id="income-compare-chart"></canvas>
+            </div>
+            <div id="chart-legend" class="chart-legend"></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h2>📈 월별 수입/지출 현황</h2>
+            </div>
+            <div class="chart-container">
+              <canvas id="monthly-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Room Bar Chart -->
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header">
+            <h2>🚪 방별 연간 수입/지출 (<span id="room-chart-year"></span>년)</h2>
+          </div>
+          <div class="chart-container" style="height:240px">
+            <canvas id="room-bar-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>📑 최근 거래 내역</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>날짜</th>
+                  <th>구분</th>
+                  <th>카테고리</th>
+                  <th>설명</th>
+                  <th>금액</th>
+                </tr>
+              </thead>
+              <tbody id="recent-transactions"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ ROOMS TAB ════════════════════════════════════════ -->
+      <section id="tab-rooms" class="tab-content">
+        <div class="page-header">
+          <h1>📦 방 관리</h1>
+          <button class="btn btn-primary" onclick="openModal('room-modal')">+ 방 추가</button>
+        </div>
+        <div id="rooms-grid" class="rooms-grid"></div>
+      </section>
+
+      <!-- ═══ TENANTS TAB ════════════════════════════════════════ -->
+      <section id="tab-tenants" class="tab-content">
+        <div class="page-header">
+          <h1>👥 세입자 관리</h1>
+          <button class="btn btn-primary" onclick="window.openTenantRegistrationModal()">+ 세입자 등록</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>이름</th>
+                  <th>연락처</th>
+                  <th>상태(방 배정)</th>
+                  <th>요금/보증금</th>
+                  <th>입주/만료</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="tenants-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ TRANSACTIONS TAB ════════════════════════════════════ -->
+      <section id="tab-transactions" class="tab-content">
+        <div class="page-header">
+          <h1>💸 수입/지출 내역</h1>
+          <button class="btn btn-primary" onclick="openModal('transaction-modal')">+ 거래 추가</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>날짜</th>
+                  <th>구분</th>
+                  <th>카테고리</th>
+                  <th>방</th>
+                  <th>내용</th>
+                  <th>금액</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="transactions-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ NOTIFICATIONS TAB ══════════════════════════════════ -->
+      <section id="tab-notifications" class="tab-content">
+        <div class="page-header">
+          <h1>🔔 알림 발송</h1>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" onclick="loadLogs()" style="border:1px solid var(--border)">🔄 새로고침</button>
+          </div>
+        </div>
+        <div class="card" style="max-width:540px; margin: 0 auto 24px">
+          <div class="card-header">
+            <h2>메시지 발송</h2>
+          </div>
+          <form id="notify-form" style="padding:20px">
+            <div class="form-group">
+              <label style="font-weight:600;">알림 템플릿 *</label>
+              <select id="use-case" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:var(--radius);">
+                <option value="RENT_DUE">월세 납부 안내</option>
+                <option value="OVERDUE_PAYMENT">월세 미납 경고</option>
+                <option value="CONTRACT_ENDING">계약 만료 안내</option>
+                <option value="MAINTENANCE_REQUEST_RECEIVED">유지보수 접수 확인</option>
+                <option value="MAINTENANCE_COMPLETED">유지보수 완료 알림</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label style="font-weight:600;">수신 대상 *</label>
+              <div style="display:flex; gap:16px; margin-bottom:8px">
+                <label style="font-weight:normal; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                  <input type="radio" name="n-target-type" value="ALL" checked onchange="toggleNotifyTarget()"> 전체 방
+                </label>
+                <label style="font-weight:normal; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                  <input type="radio" name="n-target-type" value="SPECIFIC" onchange="toggleNotifyTarget()"> 특정 방 선택
+                </label>
+              </div>
+              <div id="n-target-rooms-area" class="hidden" style="padding:12px; background:var(--bg-light); border:1px solid var(--border); border-radius:6px; max-height:200px; overflow-y:auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <!-- 체크박스 JS 동적 생성 -->
+              </div>
+            </div>
+            <button type="submit" id="notify-btn" class="btn btn-primary" style="width:100%">
+              <span id="btn-text">발송하기</span>
+              <span id="btn-loader" class="loader hidden"></span>
+            </button>
+          </form>
+        </div>
+        
+        <div class="card">
+          <div class="card-header">
+            <h2>발송 내역</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>템플릿</th>
+                  <th>상태</th>
+                  <th>채널</th>
+                  <th>발송 시간</th>
+                </tr>
+              </thead>
+              <tbody id="logs-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ PAYMENTS TAB ════════════════════════════════════════ -->
+      <section id="tab-payments" class="tab-content">
+        <div class="page-header">
+          <h1>💡 입금 확인 요청</h1>
+        </div>
+        <div class="card" style="padding: 0;">
+          <div id="payments-container" style="padding: 20px;"></div>
+        </div>
+      </section>
+
+      <!-- ═══ USERS TAB (ADMIN) ══════════════════════════════════ -->
+      <section id="tab-users" class="tab-content">
+        <div class="page-header">
+          <h1>👥 사용자 관리</h1>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" onclick="downloadBackup()" style="border:1px solid var(--border)">💾 데이터 백업</button>
+            <button class="btn btn-primary" onclick="openModal('user-modal')">+ 사용자 추가</button>
+          </div>
+        </div>
+        <div style="margin-bottom: 12px; display: flex; justify-content: flex-end;">
+          <div style="position: relative; width: 250px;">
+            <input type="text" id="user-search-input" placeholder="이름 또는 아이디 검색..." oninput="handleUserSearch(event)"
+                   style="width: 100%; padding: 8px 12px 8px 32px; border-radius: var(--radius); border: 1px solid var(--border);">
+            <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted);">🔍</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>이름</th>
+                  <th>아이디</th>
+                  <th>소속</th>
+                  <th>권한</th>
+                  <th>상태</th>
+                  <th>비밀번호</th>
+                  <th>가입일</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="users-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ INVITATIONS TAB ══════════════════════════════════ -->
+      <section id="tab-invitations" class="tab-content">
+        <div class="page-header">
+          <h1>🎫 초대 관리</h1>
+          <div style="display:flex; gap:8px;">
+            <select id="invite-tenant-select"
+              style="padding:8px; border-radius:var(--radius); border:1px solid var(--border)">
+              <option value="">세입자 지정 안함</option>
+            </select>
+            <button class="btn btn-primary" onclick="generateInviteCode()">+ 초대 코드 생성</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>초대 코드</th>
+                  <th>지정 세입자</th>
+                  <th>만료일</th>
+                  <th>사용 여부</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="invitations-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ ANNOUNCEMENTS TAB ══════════════════════════════════ -->
+      <section id="tab-announcements" class="tab-content">
+        <div class="page-header">
+          <h1>📢 공지사항</h1>
+          <button class="btn btn-primary landlord-only" onclick="openModal('announcement-modal')">+ 공지 작성</button>
+        </div>
+        <div id="announcements-list" style="display:flex; flex-direction:column; gap:16px;"></div>
+      </section>
+
+      <!-- ═══ MAINTENANCE TAB ══════════════════════════════════ -->
+      <section id="tab-maintenance" class="tab-content">
+        <div class="page-header">
+          <h1>🛠️ 고장/수리 문의</h1>
+          <button class="btn btn-primary tenant-only hidden" onclick="openModal('maintenance-modal')">+ 문의 작성</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>상태</th>
+                  <th>제목</th>
+                  <th class="landlord-only">작성자(임차인)</th>
+                  <th>작성일</th>
+                  <th class="landlord-only">상태변경</th>
+                </tr>
+              </thead>
+              <tbody id="maintenance-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ═══ MODALS ═══════════════════════════════════════════════════ -->
+
+  <!-- Room Modal -->
+  <div id="room-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="room-modal-title">방 추가</h3>
+        <button class="modal-close" onclick="closeModal('room-modal')">✕</button>
+      </div>
+      <form id="room-form">
+        <input type="hidden" id="room-id">
+        <div class="form-group"><label>방 이름 *</label><input type="text" id="r-name" placeholder="예: 101호" required></div>
+        <div class="form-group">
+          <label>계약 형태 *</label>
+          <select id="r-rent-type" onchange="toggleRoomModalRentLabel()">
+            <option value="MONTHLY" selected>월세</option>
+            <option value="YEARLY">년세</option>
+            <option value="CUSTOM">일정기간세(단기)</option>
+          </select>
+          <script>
+            function toggleRoomModalRentLabel() {
+              const val = document.getElementById('r-rent-type').value;
+              const lbl = document.getElementById('lbl-r-rent');
+              if (lbl) {
+                if (val === 'YEARLY') lbl.textContent = '년세 (원) *';
+                else if (val === 'CUSTOM') lbl.textContent = '일정기간세 (원) *';
+                else lbl.textContent = '월세 (원) *';
+              }
+            }
+          </script>
+        </div>
+        <div class="form-group"><label>설명</label><input type="text" id="r-desc" placeholder="예: 2층, 15평"></div>
+        <div class="form-group"><label id="lbl-r-rent">월세 (원) *</label><input type="number" id="r-rent" required></div>
+        <div class="form-group"><label>보증금 (원) *</label><input type="number" id="r-deposit" required></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('room-modal')">취 soul</button>
+          <button type="submit" class="btn btn-primary">저장하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Transaction Modal -->
+  <div id="transaction-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="tx-modal-title">거래 내역 추가</h3>
+        <button class="modal-close" onclick="closeModal('transaction-modal')">✕</button>
+      </div>
+      <form id="tx-form">
+        <input type="hidden" id="tx-id">
+        <div class="grid-2">
+          <div class="form-group">
+            <label>구분 *</label>
+            <select id="tx-type">
+              <option value="INCOME">수입</option>
+              <option value="EXPENSE">지출</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>날짜 *</label>
+            <input type="date" id="tx-date" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>카테고리 *</label>
+          <select id="tx-category" onchange="toggleCustomCategory()">
+            <option value="RENT">월세</option>
+            <option value="DEPOSIT">보증금</option>
+            <option value="MAINTENANCE">유지보수</option>
+            <option value="UTILITY">공과금</option>
+            <option value="TAX">세금</option>
+            <option value="CLEANING">청소비</option>
+            <option value="OTHER">기타 (직접 입력)</option>
+          </select>
+        </div>
+        <div id="custom-category-group" class="form-group hidden">
+          <label>기타 카테고리 명 *</label>
+          <input type="text" id="tx-custom-category" placeholder="카테고리 직접 입력">
+        </div>
+        <div class="form-group">
+          <label>관련 방 (공통일 경우 선택 안함)</label>
+          <select id="tx-room">
+            <option value="">-- 방 선택 --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>금액 (원) *</label>
+          <input type="number" id="tx-amount" required>
+        </div>
+        <div class="form-group">
+          <label>설명</label>
+          <input type="text" id="tx-description" placeholder="상세 내용 입력">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('transaction-modal')">취소</button>
+          <button type="submit" class="btn btn-primary">저장하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tenant Modal -->
+  <div id="tenant-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="tenant-modal-title">세입자 등록</h3>
+        <button class="modal-close" onclick="closeModal('tenant-modal')">✕</button>
+      </div>
+      <form id="tenant-form">
+        <input type="hidden" id="tenant-edit-id">
+        <div class="form-group">
+          <label>배정 방 *</label>
+          <select id="t-room" required></select>
+        </div>
+        <div class="form-group">
+          <label>세입자 이름 *</label>
+          <input type="text" id="t-name" required>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>연락처 *</label>
+            <input type="text" id="t-phone" placeholder="010-0000-0000" required maxlength="13" oninput="autoHyphenPhone(this)">
+          </div>
+          <div class="form-group">
+            <label>계약 형태 *</label>
+            <select id="t-rent-type" required onchange="toggleTenantPaymentDay()">
+              <option value="MONTHLY" selected>월세</option>
+              <option value="YEARLY">년세</option>
+              <option value="CUSTOM">일정기간세(단기)</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group" id="t-pay-day-group">
+            <label>납부일 (일)</label>
+            <input type="number" id="t-pay-day" min="1" max="31" placeholder="예: 15 (매월 15일)" oninput="enforcePayDayLimit(this)">
+          </div>
+          <div class="form-group">
+            <label>요금/보증금</label>
+            <input type="number" id="t-rent-amount" placeholder="예: 500000">
+          </div>
+        </div>
+        <script>
+          function toggleTenantPaymentDay() {
+            const val = document.getElementById('t-rent-type').value;
+            const group = document.getElementById('t-pay-day-group');
+            if (group) {
+              if (val === 'MONTHLY' || val === 'CUSTOM') {
+                group.style.display = 'block';
+              } else {
+                group.style.display = 'none';
+              }
+            }
+          }
+        </script>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>입주 일자 *</label>
+            <input type="date" id="t-start" required>
+          </div>
+          <div class="form-group">
+            <label>만료 일자 *</label>
+            <input type="date" id="t-end" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('tenant-modal')">취소</button>
+          <button type="submit" class="btn btn-primary">등록하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- User Modal (Admin) -->
+  <div id="user-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>사용자 추가</h3>
+        <button class="modal-close" onclick="closeModal('user-modal')">✕</button>
+      </div>
+      <form id="user-form">
+        <div class="form-group">
+          <label>아이디 *</label>
+          <input type="text" id="u-username" required minlength="2">
+        </div>
+        <div class="form-group" id="u-password-group">
+          <label>비밀번호 *</label>
+          <input type="password" id="u-password" required minlength="4">
+        </div>
+        <div id="u-tenant-password-info" class="hidden" style="margin-bottom:12px; padding:8px; background:var(--bg-light); color:var(--text-muted); font-size:13px; border-radius:var(--radius);">
+          (임차인은 초대코드로 로그인하므로 비밀번호가 불필요합니다)
+        </div>
+        <div class="form-group">
+          <label>권한 *</label>
+          <select id="u-role" onchange="toggleUserModalPassword()">
+            <option value="ADMIN">관리자</option>
+            <option value="USER" selected>임대인</option>
+            <option value="TENANT">임차인</option>
+          </select>
+          <script>
+            function toggleUserModalPassword() {
+              const role = document.getElementById('u-role').value;
+              const pwGroup = document.getElementById('u-password-group');
+              const pwInput = document.getElementById('u-password');
+              const tenantInfo = document.getElementById('u-tenant-password-info');
+              
+              if (role === 'TENANT') {
+                pwGroup.style.display = 'none';
+                pwInput.required = false;
+                pwInput.value = '';
+                tenantInfo.classList.remove('hidden');
+              } else {
+                pwGroup.style.display = 'block';
+                pwInput.required = true;
+                tenantInfo.classList.add('hidden');
+              }
+            }
+          </script>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('user-modal')">취소</button>
+          <button type="submit" class="btn btn-primary">추가하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Assign Modal (Admin / Tenant Mapping) -->
+  <div id="assign-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>임차인 소속 할당</h3>
+        <button class="modal-close" onclick="closeModal('assign-modal')">✕</button>
+      </div>
+      <form id="assign-form">
+        <input type="hidden" id="assign-u-id">
+        <div class="form-group">
+          <label>임대인 선택 *</label>
+          <select id="assign-landlord" required onchange="loadAssignRooms()">
+            <option value="">-- 임대인 선택 --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>소속 방 선택 *</label>
+          <select id="assign-room" required>
+            <option value="">-- (임대인을 먼저 선택하세요) --</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <!-- 취소 시 롤백하도록 할 수도 있으나 UI상 모달만 닫음 -->
+          <button type="button" class="btn btn-ghost" onclick="closeModal('assign-modal')">취소</button>
+          <button type="submit" class="btn btn-primary">할당 완료</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Password Reset Modal -->
+  <div id="password-reset-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>비밀번호 초기화</h3>
+        <button class="modal-close" onclick="closeModal('password-reset-modal')">✕</button>
+      </div>
+      <form id="password-reset-form">
+        <input type="hidden" id="reset-u-id">
+        <div class="form-group">
+          <label>사용자: <span id="reset-u-name" style="font-weight:700"></span></label>
+        </div>
+        <div class="form-group">
+          <label>새 비밀번호 *</label>
+          <input type="password" id="reset-u-password" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('password-reset-modal')">취소</button>
+          <button type="submit" class="btn btn-primary" style="width:100%">변경하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Profile Modal -->
+  <div id="profile-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>내 정보</h3>
+        <button class="modal-close" onclick="closeModal('profile-modal')">✕</button>
+      </div>
+      <div id="profile-modal-content" style="padding:16px 24px; max-height:75vh; overflow-y:auto;">
+        <!-- JS에서 역할에 따라 동적 렌더링 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Room Detail Modal -->
+  <div id="room-detail-modal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:680px">
+      <div class="modal-header">
+        <h3 id="detail-room-name">방 상세 정보</h3>
+        <button class="modal-close" onclick="closeModal('room-detail-modal')">✕</button>
+      </div>
+      <div id="room-detail-content" class="room-detail-content"></div>
+    </div>
+  </div>
+
+  <!-- Announcement Modal -->
+  <div id="announcement-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>공지사항 작성</h3>
+        <button class="modal-close" onclick="closeModal('announcement-modal')">✕</button>
+      </div>
+      <form id="announcement-form">
+        <div class="form-group">
+          <label>제목 *</label>
+          <input type="text" id="a-title" required>
+        </div>
+        <div class="form-group">
+          <label>수신 대상 *</label>
+          <div style="display:flex; gap:16px; margin-bottom:8px">
+            <label style="font-weight:normal; display:flex; align-items:center; gap:4px">
+              <input type="radio" name="a-target-type" value="ALL" checked onchange="toggleAnnouncementTarget()"> 전체 방
+            </label>
+            <label style="font-weight:normal; display:flex; align-items:center; gap:4px">
+              <input type="radio" name="a-target-type" value="SPECIFIC" onchange="toggleAnnouncementTarget()"> 특정 방 선택
+            </label>
+          </div>
+          <div id="a-target-rooms-area" class="hidden" style="padding:12px; background:var(--bg-light); border:1px solid var(--border); border-radius:6px; max-height:150px; overflow-y:auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <!-- Checkboxes will be populated here via JS -->
+          </div>
+        </div>
+        <div class="form-group">
+          <label>내용 *</label>
+          <textarea id="a-content" rows="6" required
+            style="width:100%; padding:10px; border:1px solid var(--border); border-radius:var(--radius)"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('announcement-modal')">취소</button>
+          <button type="submit" class="btn btn-primary">등록하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Maintenance Modal -->
+  <div id="maintenance-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>고장/수리 문의 작성</h3>
+        <button class="modal-close" onclick="closeModal('maintenance-modal')">✕</button>
+      </div>
+      <form id="maintenance-form">
+        <div class="form-group">
+          <label>제목 *</label>
+          <input type="text" id="m-title" required placeholder="예: 보일러가 고장났습니다">
+        </div>
+        <div class="form-group">
+          <label>상세 내용 *</label>
+          <textarea id="m-content" rows="6" required
+            style="width:100%; padding:10px; border:1px solid var(--border); border-radius:var(--radius)"
+            placeholder="증상과 발생 일시 등 자세히 적어주세요."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('maintenance-modal')">취소</button>
+          <button type="submit" class="btn btn-primary">접수하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Auth Overlays -->
+  <div id="login-overlay" class="login-overlay active">
+
+    <!-- ① 역할 선택 화면 (첫 진입) -->
+    <div id="role-select-panel" class="login-box" style="max-width:480px;">
+      <div style="text-align:center; margin-bottom:36px;">
+        <span style="font-size:52px; display:block; margin-bottom:14px;">🏠</span>
+        <h2 style="font-size:26px; font-weight:700; color:var(--sidebar-bg);">체크인사장님</h2>
+        <p style="font-size:14px; color:var(--text-muted); margin-top:6px;">스마트 숙소 관리 솔루션</p>
+      </div>
+      <p style="text-align:center; font-weight:600; font-size:15px; color:var(--sidebar-bg); margin-bottom:20px;">어떤 역할로 시작하시겠어요?</p>
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <button onclick="selectRole('landlord')" class="btn" style="padding:20px 24px; font-size:16px; font-weight:700; border-radius:14px; border:2px solid var(--primary); background:var(--primary); color:white; display:flex; align-items:center; gap:16px; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+          <span style="font-size:32px;">🏢</span>
+          <div style="text-align:left;">
+            <div>임대인으로 시작하기</div>
+            <div style="font-size:12px; font-weight:400; opacity:0.85; margin-top:2px;">숙소 관리 · 세입자 관리 · 수입/지출</div>
+          </div>
+        </button>
+        <button onclick="selectRole('tenant')" class="btn" style="padding:20px 24px; font-size:16px; font-weight:700; border-radius:14px; border:2px solid #10b981; background:#10b981; color:white; display:flex; align-items:center; gap:16px; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+          <span style="font-size:32px;">🏠</span>
+          <div style="text-align:left;">
+            <div>임차인으로 시작하기</div>
+            <div style="font-size:12px; font-weight:400; opacity:0.85; margin-top:2px;">공지사항 · 수리 문의 · 납부 확인</div>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- ② 로그인/회원가입 박스 (역할 선택 후 표시) -->
+    <div id="auth-box" class="login-box" style="display:none;">
+      <div style="text-align:center; margin-bottom:28px;">
+        <span style="font-size:44px; display:block; margin-bottom:10px;">🏠</span>
+        <h2 id="auth-box-title" style="font-size:22px; font-weight:700; color:var(--sidebar-bg);">로그인</h2>
+        <p style="font-size:13px; color:var(--text-muted); margin-top:4px;">스마트 숙소 관리 솔루션</p>
+      </div>
+
+      <!-- Landlord Login Panel -->
+      <div id="landlord-login-panel">
+        <form id="landlord-login-form">
+          <div class="form-group">
+            <label>아이디</label>
+            <input type="text" id="landlord-login-id" required>
+          </div>
+          <div class="form-group">
+            <label>비밀번호</label>
+            <input type="password" id="landlord-login-pw" required>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; margin-top:10px; padding:14px">로그인</button>
+        </form>
+        <div style="text-align:center; margin-top:20px; display:flex; flex-direction:column; gap:10px;">
+          <a href="#" onclick="toggleSignupMode(true)" style="font-size:14px; color:var(--primary); font-weight:600; text-decoration:none;">임대인 회원가입</a>
+          <a href="#" onclick="goBackToRoleSelect()" style="font-size:13px; color:var(--text-muted); text-decoration:none;">← 다른 역할로 시작하기</a>
+        </div>
+      </div>
+
+      <!-- Tenant Login Panel (전화번호 단일 인증) -->
+      <div id="tenant-login-panel" class="hidden">
+        <form id="tenant-login-form">
+          <div class="form-group">
+            <label>휴대폰 번호</label>
+            <input type="tel" id="tenant-login-phone" required autocomplete="tel" maxlength="13" placeholder="예: 010-1234-5678" oninput="autoHyphenPhone(this)">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; margin-top:10px; padding:14px">로그인</button>
+        </form>
+        <div style="text-align:center; margin-top:20px; display:flex; flex-direction:column; gap:10px;">
+          <a href="#" onclick="toggleAuthPanel('tenant-register')" style="font-size:14px; color:var(--primary); font-weight:600; text-decoration:none;">초대코드로 회원가입하기</a>
+          <a href="#" onclick="goBackToRoleSelect()" style="font-size:13px; color:var(--text-muted); text-decoration:none;">← 다른 역할로 시작하기</a>
+        </div>
+      </div>
+
+      <!-- Register Panel (임대인 가입 - 전화번호 필드 추가) -->
+      <div id="register-panel" class="hidden">
+        <form id="register-form">
+          <div class="form-group">
+            <label>이름</label>
+            <input type="text" id="reg-name" required minlength="2">
+          </div>
+          <div class="form-group">
+            <label>아이디</label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="reg-id" required minlength="2" oninput="window.isUsernameChecked = false; document.getElementById('reg-id-msg').textContent = '';">
+              <button type="button" class="btn btn-ghost" onclick="checkUsernameDuplication()" style="white-space:nowrap; border:1px solid var(--border);">중복확인</button>
+            </div>
+            <div id="reg-id-msg" style="font-size:12px; margin-top:4px;"></div>
+          </div>
+          <div class="form-group">
+            <label>휴대폰 번호</label>
+            <input type="tel" id="reg-phone" required autocomplete="tel" maxlength="13" placeholder="예: 010-1234-5678" oninput="autoHyphenPhone(this)">
+          </div>
+          <div class="form-group">
+            <label>이메일</label>
+            <input type="email" id="reg-email" required>
+          </div>
+          <div class="form-group">
+            <label>비밀번호 (4자 이상)</label>
+            <input type="password" id="reg-pw" required minlength="4">
+          </div>
+          <div class="form-group">
+            <label>비밀번호 확인</label>
+            <input type="password" id="reg-pw2" required minlength="4">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; margin-top:10px; padding:14px">가입하기</button>
+        </form>
+        <div style="display:flex; justify-content:center; margin-top:20px; font-size:14px;">
+          <a href="#" onclick="toggleSignupMode(false)" style="color:var(--primary); font-weight:600; text-decoration:none;">이미 계정이 있으신가요? 로그인하기</a>
+        </div>
+        <div style="text-align:center; margin-top:12px;">
+          <a href="#" onclick="goBackToRoleSelect()" style="font-size:13px; color:var(--text-muted); text-decoration:none;">← 다른 역할로 시작하기</a>
+        </div>
+      </div>
+
+      <!-- Tenant Register Panel (No-Password: 성함/전화번호/방번호/초대코드만) -->
+      <div id="tenant-register-panel" class="hidden">
+        <form id="tenant-register-form">
+          <div class="form-group">
+            <label>성함</label>
+            <input type="text" id="treg-name" required minlength="2" placeholder="홍길동">
+          </div>
+          <div class="form-group">
+            <label>휴대폰 번호</label>
+            <input type="tel" id="treg-phone" required autocomplete="tel" maxlength="13" placeholder="예: 010-1234-5678" oninput="autoHyphenPhone(this)">
+          </div>
+          <div class="form-group">
+            <label>초대 코드</label>
+            <input type="text" id="treg-code" required placeholder="임대인에게 받은 8자리 코드">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; margin-top:10px; padding:14px">임차인 가입하기</button>
+        </form>
+        <div style="display:flex; justify-content:space-between; margin-top:20px; font-size:14px;">
+          <a href="#" onclick="toggleAuthPanel('tenant-login')" style="color:var(--text-muted);text-decoration:none;">← 로그인으로</a>
+        </div>
+        <div style="text-align:center; margin-top:12px;">
+          <a href="#" onclick="goBackToRoleSelect()" style="font-size:13px; color:var(--text-muted); text-decoration:none;">← 다른 역할로 로그인하기</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- State -->
+  <script src="js/state.js?v=20"></script>
+  <!-- Utils -->
+  <script src="js/utils/api.js?v=20"></script>
+  <script src="js/utils/helpers.js?v=20"></script>
+  <script src="js/utils/ui.js?v=21"></script>
+  <script src="js/utils/auth.js?v=20"></script>
+  <script src="js/utils/backup.js?v=20"></script>
+  <!-- Pages -->
+  <script src="js/pages/dashboard.js?v=20"></script>
+  <script src="js/pages/rooms.js?v=20"></script>
+  <script src="js/pages/tenants.js?v=20"></script>
+  <script src="js/pages/transactions.js?v=20"></script>
+  <script src="js/pages/users.js?v=20"></script>
+  <script src="js/pages/board.js?v=20"></script>
+  <script src="js/pages/invitations.js?v=20"></script>
+  <script src="js/pages/payments.js?v=21"></script>
+  <script src="js/utils/push.js?v=20"></script>
+  <!-- Init (must be last) -->
+  <script src="js/forms.js?v=22"></script>
+</body>
+
+</html>
