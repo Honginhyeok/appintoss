@@ -100,3 +100,50 @@ export function ListRow({ icon, title, subTitle, onClick }: { icon?: React.React
     </div>
   );
 }
+
+// TDS TextField Component
+interface TextFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  error?: string;
+}
+export function TextField({ label, error, style, ...props }: TextFieldProps) {
+  return (
+    <div style={{ marginBottom: '16px' }}>
+      {label && (
+        <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#4e5968', marginBottom: '8px' }}>
+          {label}
+        </label>
+      )}
+      <input
+        style={{
+          width: '100%',
+          padding: '16px',
+          borderRadius: '12px',
+          border: error ? '2px solid #f04452' : '1px solid transparent',
+          backgroundColor: '#f2f4f6',
+          fontSize: '16px',
+          color: '#191f28',
+          outline: 'none',
+          transition: 'all 0.15s ease',
+          boxSizing: 'border-box',
+          ...style,
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.border = '2px solid #3182f6';
+          e.currentTarget.style.backgroundColor = '#ffffff';
+          props.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.border = error ? '2px solid #f04452' : '1px solid transparent';
+          e.currentTarget.style.backgroundColor = '#f2f4f6';
+          props.onBlur?.(e);
+        }}
+        {...props}
+      />
+      {error && (
+        <p style={{ fontSize: '13px', color: '#f04452', marginTop: '6px' }}>{error}</p>
+      )}
+    </div>
+  );
+}
+

@@ -211,7 +211,7 @@ router.post('/login', async (req, res) => {
       // TENANT는 비밀번호 검증 생략 → 즉시 토큰 발급
       const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status }, JWT_SECRET, { expiresIn: '7d' });
       res.cookie('token', token, { httpOnly: true, secure: NODE_ENV === 'production', sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
-      return res.json({ success: true, user: { id: user.id, username: user.username, role: user.role, status: user.status } });
+      return res.json({ success: true, token, user: { id: user.id, username: user.username, role: user.role, status: user.status } });
 
     } else if (reqRole === 'LANDLORD') {
       const { username, password } = req.body;
@@ -231,7 +231,7 @@ router.post('/login', async (req, res) => {
 
       const token = jwt.sign({ id: user.id, username: user.username, role: user.role, status: user.status }, JWT_SECRET, { expiresIn: '7d' });
       res.cookie('token', token, { httpOnly: true, secure: NODE_ENV === 'production', sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
-      return res.json({ success: true, user: { id: user.id, username: user.username, role: user.role, status: user.status } });
+      return res.json({ success: true, token, user: { id: user.id, username: user.username, role: user.role, status: user.status } });
 
     } else {
       return res.status(400).json({ error: '유효하지 않은 역할(Role)입니다' });
