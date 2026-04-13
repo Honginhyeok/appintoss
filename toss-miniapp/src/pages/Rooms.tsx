@@ -94,10 +94,14 @@ export function Rooms() {
         </ul>
       )}
 
-      {/* 프리미엄 업그레이드 바텀 시트 */}
+      {/* 프리미엄 업그레이드 전면 모달 */}
       <UpgradeModal 
         isOpen={isUpgradeModalOpen} 
         onClose={() => setUpgradeModalOpen(false)} 
+        onSuccess={() => {
+          setUpgradeModalOpen(false);
+          handleAddRoom();
+        }}
       />
     </div>
   );

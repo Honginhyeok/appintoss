@@ -5,6 +5,19 @@ import { authenticateToken, requireAdmin, AuthenticatedRequest } from '../middle
 
 const router = Router();
 
+// ─── PREMIUM UPGRADE (USER TIER) ──────────────────────────────────
+router.post('/upgrade', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user.id;
+    // 실제 운영 환경에서는 PG사의 결제 승인(Confirm) 모듈과 연동해야 하지만, 현재는 Mock 승인
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isSubscribed: true, subscriptionTier: 'PREMIUM' }
+    });
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 // ─── USER MANAGEMENT (ADMIN ONLY) ──────────────────────────────────
 router.use(authenticateToken, requireAdmin);
 
