@@ -1,8 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { TDSProvider } from './components/tds';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Login } from './pages/Login';
+import { Dashboard } from './pages/Dashboard';
 import { Payment } from './pages/Payment';
 import { Settings } from './pages/Settings';
 import { AdminUserManagement } from './pages/AdminUserManagement';
@@ -13,7 +14,7 @@ import { TransactionHistory } from './pages/TransactionHistory';
 import { PaymentStatus } from './pages/PaymentStatus';
 import { HealthCheck } from './pages/HealthCheck';
 
-/** 인증되지 않았으면 /login 으로 리다이렉트 */
+/* ─── Private Route ─── */
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, isLoading } = useAuth();
 
@@ -29,78 +30,101 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isLoggedIn) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (!isLoggedIn) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
-/** 네비게이션 바 (로그인 후에만 보임) */
-function AppNavbar() {
+/* ─── 하단 네비게이션 바 (Bottom Navigation) ─── */
+function BottomNav() {
   const { isLoggedIn, user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   if (!isLoggedIn || location.pathname === '/login') return null;
 
   const isLandlord = user?.role !== 'TENANT';
 
-  const navItems = [
-    ...(isLandlord ? [
-      { path: '/rooms', label: '방', icon: '🚪' },
-      { path: '/tenants', label: '세입자', icon: '👤' },
-      { path: '/transactions', label: '거래', icon: '📊' },
-      { path: '/payment-status', label: '납부', icon: '💳' },
-    ] : [
-      { path: '/payment', label: '납부', icon: '💳' },
-    ]),
-    { path: '/settings', label: '설정', icon: '⚙️' },
-  ];
+  const items = isLandlord
+    ? [
+        { path: '/dashboard', label: '홈', icon: '🏠', iconActive: '🏠' },
+        { path: '/rooms', label: '방', icon: '🚪', iconActive: '🚪' },
+        { path: '/tenants', label: '세입자', icon: '👤', iconActive: '👤' },
+        { path: '/transactions', label: '거래', icon: '📊', iconActive: '📊' },
+        { path: '/settings', label: '설정', icon: '⚙️', iconActive: '⚙️' },
+      ]
+    : [
+        { path: '/payment', label: '납부', icon: '💳', iconActive: '💳' },
+        { path: '/settings', label: '설정', icon: '⚙️', iconActive: '⚙️' },
+      ];
 
   return (
     <nav style={{
+      position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+      width: '100%', maxWidth: '480px',
       display: 'flex', justifyContent: 'space-around', alignItems: 'center',
-      borderBottom: '1px solid #f2f4f6', padding: '0', background: '#fff',
+      background: '#ffffff', borderTop: '1px solid #f2f4f6',
+      padding: '6px 0 env(safe-area-inset-bottom, 8px)',
+      zIndex: 9999,
+      boxShadow: '0 -2px 12px rgba(0,0,0,0.04)',
     }}>
-      {navItems.map((item) => {
-        const isActive = location.pathname === item.path;
+      {items.map(item => {
+        const active = location.pathname === item.path ||
+          (item.path === '/dashboard' && location.pathname === '/');
         return (
-          <a
+          <button
             key={item.path}
-            href={item.path}
+            onClick={() => navigate(item.path)}
             style={{
-              textDecoration: 'none',
-              padding: '14px 8px',
-              fontSize: '13px',
-              fontWeight: isActive ? '700' : '500',
-              color: isActive ? '#3182f6' : '#8b95a1',
-              borderBottom: isActive ? '2px solid #3182f6' : '2px solid transparent',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '6px 12px', minWidth: '48px',
               transition: 'all 0.15s',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '2px',
             }}
           >
-            <span style={{ fontSize: '18px' }}>{item.icon}</span>
-            <span>{item.label}</span>
-          </a>
+            <span style={{
+              fontSize: '22px',
+              filter: active ? 'none' : 'grayscale(60%)',
+              opacity: active ? 1 : 0.6,
+              transition: 'all 0.2s',
+            }}>
+              {active ? item.iconActive : item.icon}
+            </span>
+            <span style={{
+              fontSize: '10px',
+              fontWeight: active ? '700' : '500',
+              color: active ? '#3182f6' : '#8b95a1',
+              transition: 'color 0.15s',
+            }}>
+              {item.label}
+            </span>
+            {active && (
+              <div style={{
+                width: '4px', height: '4px', borderRadius: '50%',
+                background: '#3182f6', marginTop: '1px',
+              }} />
+            )}
+          </button>
         );
       })}
     </nav>
   );
 }
 
+/* ─── App Content ─── */
 function AppContent() {
   const { user } = useAuth();
-  const defaultPath = user?.role === 'TENANT' ? '/payment' : '/rooms';
+  const defaultPath = user?.role === 'TENANT' ? '/payment' : '/dashboard';
 
   return (
-    <div style={{ maxWidth: '480px', margin: '0 auto', minHeight: '100vh', background: '#ffffff', boxShadow: '0 0 20px rgba(0,0,0,0.05)' }}>
-      <AppNavbar />
+    <div style={{
+      maxWidth: '480px', margin: '0 auto', minHeight: '100vh',
+      background: '#ffffff', boxShadow: '0 0 20px rgba(0,0,0,0.05)',
+      position: 'relative',
+    }}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<PrivateRoute><Navigate to={defaultPath} replace /></PrivateRoute>} />
+        <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/payment" element={<PrivateRoute><Payment /></PrivateRoute>} />
         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
         <Route path="/admin" element={<PrivateRoute><AdminUserManagement /></PrivateRoute>} />
@@ -111,10 +135,12 @@ function AppContent() {
         <Route path="/payment-status" element={<PrivateRoute><PaymentStatus /></PrivateRoute>} />
         <Route path="/health" element={<PrivateRoute><HealthCheck /></PrivateRoute>} />
       </Routes>
+      <BottomNav />
     </div>
   );
 }
 
+/* ─── Root ─── */
 function App() {
   return (
     <ErrorBoundary>

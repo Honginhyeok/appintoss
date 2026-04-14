@@ -19,7 +19,7 @@ export function Login() {
 
   // 이미 로그인 상태면 즉시 홈으로 리다이렉트
   if (isLoggedIn) {
-    const dest = user?.role === 'TENANT' ? '/payment' : '/rooms';
+    const dest = user?.role === 'TENANT' ? '/payment' : '/dashboard';
     return <Navigate to={dest} replace />;
   }
   const [step, setStep] = useState<Step>('role');
