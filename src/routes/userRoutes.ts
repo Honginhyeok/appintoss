@@ -9,13 +9,31 @@ const router = Router();
 router.post('/upgrade', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user.id;
-    // 실제 운영 환경에서는 PG사의 결제 승인(Confirm) 모듈과 연동해야 하지만, 현재는 Mock 승인
+    // req.body에 IAP.createSubscriptionPurchaseOrder에서 전달된 orderId, subscriptionId가 포함됨
+    // const { orderId, subscriptionId } = req.body;
+    
     await prisma.user.update({
       where: { id: userId },
       data: { isSubscribed: true, subscriptionTier: 'PREMIUM' }
     });
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── TOSS IAP WEBHOOK (SUBSCRIPTION EVENTS) ───────────────────────
+router.post('/toss/webhook/subscription', async (req, res) => {
+  try {
+    const payload = req.body;
+    console.log('[TOSS IAP WEBHOOK] Received subscription event:', payload);
+    
+    // TODO: payload(event)를 분석하여 해당 유저의 구독 갱신, 해지, 만료 등을 처리하는 로직 구현
+    // 예: if (payload.status === 'EXPIRED') { ... set isSubscribed: false }
+    
+    res.status(200).send('OK');
+  } catch (e: any) {
+    console.error('[TOSS IAP WEBHOOK] Error:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ─── USER MANAGEMENT (ADMIN ONLY) ──────────────────────────────────
@@ -26,7 +44,7 @@ router.get('/', async (_req, res) => {
   try {
     const users = await prisma.user.findMany({
       select: { 
-        id: true, name: true, username: true, role: true, status: true, createdAt: true, plainPassword: true,
+        id: true, name: true, username: true, roles: true, status: true, createdAt: true, plainPassword: true,
         landlord: { select: { id: true, name: true, username: true } },
         assignedRoom: { select: { id: true, name: true } }
       },
@@ -53,10 +71,10 @@ router.post('/', async (req, res) => {
         username, 
         password: hashedPassword, 
         plainPassword: role === 'TENANT' ? null : finalPassword, 
-        role: role || 'USER', 
+        roles: [role || 'USER'], 
         status: 'ACTIVE' 
       },
-      select: { id: true, username: true, role: true, status: true, createdAt: true, plainPassword: true }
+      select: { id: true, username: true, roles: true, status: true, createdAt: true, plainPassword: true }
     });
     res.json(user);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -114,7 +132,7 @@ router.put('/:id/role', async (req: AuthenticatedRequest, res) => {
     }
     if (req.user?.id === id) return res.status(400).json({ error: '자기 자신의 역할은 변경할 수 없습니다' });
 
-    await prisma.user.update({ where: { id }, data: { role } });
+    await prisma.user.update({ where: { id }, data: { roles: [role] } });
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -127,7 +145,7 @@ router.put('/:id/assign', async (req: AuthenticatedRequest, res) => {
     
     // Validate target user exists and is a TENANT
     const user = await prisma.user.findUnique({ where: { id } });
-    if (!user || user.role !== 'TENANT') {
+    if (!user || !user.roles.includes('TENANT')) {
       return res.status(400).json({ error: '해당 임차인을 찾을 수 없거나 권한이 올바르지 않습니다' });
     }
 

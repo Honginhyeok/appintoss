@@ -20,6 +20,7 @@ interface TenantData {
   deposit?: number;
   moveInDate?: string;
   moveOutDate?: string;
+  loginUserId?: string;
 }
 
 /** 금액 포매터 */
@@ -137,6 +138,31 @@ export function Tenants() {
     return `${badge} ${amount}${payDay}`;
   };
 
+  const handleSendNotification = async (t: TenantData) => {
+    if (!t.loginUserId) {
+      alert('세입자가 아직 토스 미니앱에 가입/로그인하지 않았습니다. (초대코드로 가입 필요)');
+      return;
+    }
+    try {
+      const res = await apiFetch('/api/in-app-notifications', {
+        method: 'POST',
+        body: JSON.stringify({
+          targetUserId: t.loginUserId,
+          title: '청구서 알림',
+          message: '이번 달 월세 결제가 필요합니다.',
+          link: '/payment'
+        })
+      });
+      if (res.ok) {
+        alert('청구서 알림을 발송했습니다.');
+      } else {
+        alert('알림 발송에 실패했습니다.');
+      }
+    } catch {
+      alert('네트워크 오류');
+    }
+  };
+
   return (
     <div style={{ padding: '24px', minHeight: '100vh', background: '#fff' }}>
       {/* 헤더 */}
@@ -189,6 +215,7 @@ export function Tenants() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => handleSendNotification(t)} style={{ background: '#e8f3ff', color: '#3182f6', border: 'none', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>청구서 보내기 💸</button>
                   <button onClick={() => openEdit(t)} style={{ background: '#f2f4f6', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '16px' }}>✏️</button>
                   <button onClick={() => handleDelete(t)} style={{ background: '#ffeeee', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer', fontSize: '16px' }}>🗑️</button>
                 </div>
@@ -200,56 +227,58 @@ export function Tenants() {
 
       {/* 등록/수정 BottomSheet */}
       <BottomSheet isOpen={showForm} onClose={() => { setShowForm(false); resetForm(); }} title={editId ? '세입자 정보 수정' : '세입자 등록'}>
-        <TextField label="이름 *" value={name} onChange={e => setName(e.target.value)} placeholder="홍길동" />
-        <TextField label="연락처" type="tel" value={phone} onChange={e => setPhone(formatPhone(e.target.value))} placeholder="010-1234-5678" maxLength={13} />
+        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '120px', maxHeight: '75vh' }}>
+          <TextField label="이름 *" value={name} onChange={e => setName(e.target.value)} placeholder="홍길동" />
+          <TextField label="연락처" type="tel" value={phone} onChange={e => setPhone(formatPhone(e.target.value))} placeholder="010-1234-5678" maxLength={13} />
 
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#4e5968', marginBottom: '8px' }}>배정 방</label>
-          <select
-            value={roomId}
-            onChange={e => setRoomId(e.target.value)}
-            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: '#f2f4f6', fontSize: '16px', outline: 'none', boxSizing: 'border-box' as const }}
-          >
-            <option value="">방 선택 (미배정)</option>
-            {(editId ? rooms : vacantRooms).map(r => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#4e5968', marginBottom: '8px' }}>임대 유형</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {[['MONTHLY', '월세'], ['YEARLY', '년세'], ['CUSTOM', '기간제']].map(([val, label]) => (
-              <button
-                key={val}
-                onClick={() => setRentType(val)}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                  fontSize: '14px', fontWeight: '600', transition: 'all 0.15s',
-                  background: rentType === val ? '#3182f6' : '#f2f4f6',
-                  color: rentType === val ? '#fff' : '#4e5968',
-                }}
-              >
-                {label}
-              </button>
-            ))}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#4e5968', marginBottom: '8px' }}>배정 방</label>
+            <select
+              value={roomId}
+              onChange={e => setRoomId(e.target.value)}
+              style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: '#f2f4f6', color: '#191f28', fontSize: '16px', outline: 'none', boxSizing: 'border-box' as const }}
+            >
+              <option value="">방 선택 (미배정)</option>
+              {(editId ? rooms : vacantRooms).map(r => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
           </div>
-        </div>
 
-        <TextField label="임대료 (원)" type="number" value={rentAmount} onChange={e => setRentAmount(e.target.value)} placeholder="500000" />
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#4e5968', marginBottom: '8px' }}>임대 유형</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {[['MONTHLY', '월세'], ['YEARLY', '년세'], ['CUSTOM', '기간제']].map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setRentType(val)}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                    fontSize: '14px', fontWeight: '600', transition: 'all 0.15s',
+                    background: rentType === val ? '#3182f6' : '#f2f4f6',
+                    color: rentType === val ? '#fff' : '#4e5968',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        {rentType === 'MONTHLY' && (
-          <TextField label="납부일 (매월 N일)" type="number" value={rentPaymentDay} onChange={e => setRentPaymentDay(e.target.value)} placeholder="15" />
-        )}
+          <TextField label="임대료 (원)" type="number" value={rentAmount} onChange={e => setRentAmount(e.target.value)} placeholder="500000" />
 
-        <TextField label="보증금 (원)" type="number" value={deposit} onChange={e => setDeposit(e.target.value)} placeholder="3000000" />
-        <TextField label="입주일" type="date" value={moveInDate} onChange={e => setMoveInDate(e.target.value)} />
+          {rentType === 'MONTHLY' && (
+            <TextField label="납부일 (매월 N일)" type="number" value={rentPaymentDay} onChange={e => setRentPaymentDay(e.target.value)} placeholder="15" />
+          )}
 
-        <div style={{ marginTop: '8px' }}>
-          <Button variant="primary" onClick={handleSave} disabled={saving}>
-            {saving ? '저장 중...' : editId ? '수정 완료' : '세입자 등록하기'}
-          </Button>
+          <TextField label="보증금 (원)" type="number" value={deposit} onChange={e => setDeposit(e.target.value)} placeholder="3000000" />
+          <TextField label="입주일" type="date" value={moveInDate} onChange={e => setMoveInDate(e.target.value)} />
+
+          <div style={{ marginTop: '8px' }}>
+            <Button variant="primary" onClick={handleSave} disabled={saving}>
+              {saving ? '저장 중...' : editId ? '수정 완료' : '세입자 등록하기'}
+            </Button>
+          </div>
         </div>
       </BottomSheet>
     </div>

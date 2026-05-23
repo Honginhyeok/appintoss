@@ -46,13 +46,15 @@ export function Button({ variant = 'primary', children, style, ...props }: Butto
 export function BottomSheet({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children: React.ReactNode }) {
   if (!isOpen) return null;
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', padding: '24px', paddingBottom: '32px', animation: 'slideUp 0.3s ease-out' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', padding: '24px', paddingBottom: '32px', animation: 'slideUp 0.3s ease-out', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexShrink: 0 }}>
           <h3 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>{title}</h3>
           <button style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#b0b8c1' }} onClick={onClose}>&times;</button>
         </div>
-        {children}
+        <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: 1, minHeight: 0 }}>
+          {children}
+        </div>
       </div>
       <style>{`@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`}</style>
     </div>
@@ -65,7 +67,7 @@ export function Select({ value, onChange, options, placeholder = '선택해주�
     <select 
        value={value} 
        onChange={(e) => onChange(e.target.value)}
-       style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid #e5e8eb', fontSize: '16px', backgroundColor: '#f9f9f9', outline: 'none', cursor: 'pointer', appearance: 'none' }}>
+       style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid #e5e8eb', fontSize: '16px', backgroundColor: '#f9f9f9', color: '#191f28', outline: 'none', cursor: 'pointer', appearance: 'none' }}>
       <option value="" disabled>{placeholder}</option>
       {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
     </select>

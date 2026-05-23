@@ -17,6 +17,36 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const db_1 = require("../config/db");
 const authMiddleware_1 = require("../middlewares/authMiddleware");
 const router = (0, express_1.Router)();
+// ─── PREMIUM UPGRADE (USER TIER) ──────────────────────────────────
+router.post('/upgrade', authMiddleware_1.authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const userId = req.user.id;
+        // req.body에 IAP.createSubscriptionPurchaseOrder에서 전달된 orderId, subscriptionId가 포함됨
+        // const { orderId, subscriptionId } = req.body;
+        yield db_1.prisma.user.update({
+            where: { id: userId },
+            data: { isSubscribed: true, subscriptionTier: 'PREMIUM' }
+        });
+        res.json({ success: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+}));
+// ─── TOSS IAP WEBHOOK (SUBSCRIPTION EVENTS) ───────────────────────
+router.post('/toss/webhook/subscription', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const payload = req.body;
+        console.log('[TOSS IAP WEBHOOK] Received subscription event:', payload);
+        // TODO: payload(event)를 분석하여 해당 유저의 구독 갱신, 해지, 만료 등을 처리하는 로직 구현
+        // 예: if (payload.status === 'EXPIRED') { ... set isSubscribed: false }
+        res.status(200).send('OK');
+    }
+    catch (e) {
+        console.error('[TOSS IAP WEBHOOK] Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+}));
 // ─── USER MANAGEMENT (ADMIN ONLY) ──────────────────────────────────
 router.use(authMiddleware_1.authenticateToken, authMiddleware_1.requireAdmin);
 // List all users
@@ -24,7 +54,7 @@ router.get('/', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const users = yield db_1.prisma.user.findMany({
             select: {
-                id: true, name: true, username: true, role: true, status: true, createdAt: true, plainPassword: true,
+                id: true, name: true, username: true, roles: true, status: true, createdAt: true, plainPassword: true,
                 landlord: { select: { id: true, name: true, username: true } },
                 assignedRoom: { select: { id: true, name: true } }
             },
@@ -53,10 +83,10 @@ router.post('/', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 username,
                 password: hashedPassword,
                 plainPassword: role === 'TENANT' ? null : finalPassword,
-                role: role || 'USER',
+                roles: [role || 'USER'],
                 status: 'ACTIVE'
             },
-            select: { id: true, username: true, role: true, status: true, createdAt: true, plainPassword: true }
+            select: { id: true, username: true, roles: true, status: true, createdAt: true, plainPassword: true }
         });
         res.json(user);
     }
@@ -125,7 +155,7 @@ router.put('/:id/role', (req, res) => __awaiter(void 0, void 0, void 0, function
         }
         if (((_a = req.user) === null || _a === void 0 ? void 0 : _a.id) === id)
             return res.status(400).json({ error: '자기 자신의 역할은 변경할 수 없습니다' });
-        yield db_1.prisma.user.update({ where: { id }, data: { role } });
+        yield db_1.prisma.user.update({ where: { id }, data: { roles: [role] } });
         res.json({ success: true });
     }
     catch (e) {
@@ -139,7 +169,7 @@ router.put('/:id/assign', (req, res) => __awaiter(void 0, void 0, void 0, functi
         const { landlordId, roomId } = req.body;
         // Validate target user exists and is a TENANT
         const user = yield db_1.prisma.user.findUnique({ where: { id } });
-        if (!user || user.role !== 'TENANT') {
+        if (!user || !user.roles.includes('TENANT')) {
             return res.status(400).json({ error: '해당 임차인을 찾을 수 없거나 권한이 올바르지 않습니다' });
         }
         yield db_1.prisma.user.update({

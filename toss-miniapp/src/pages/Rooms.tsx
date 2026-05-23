@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/tds';
 import { UpgradeModal } from '../components/UpgradeModal';
+import { apiFetch } from '../utils/env';
 
 export function Rooms() {
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false);
@@ -11,9 +14,7 @@ export function Rooms() {
   const fetchRooms = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/rooms', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
+      const res = await apiFetch('/api/rooms');
       if (res.ok) {
         const data = await res.json();
         setRooms(data);
@@ -35,12 +36,8 @@ export function Rooms() {
     }
 
     try {
-      const res = await fetch('/api/rooms', {
+      const res = await apiFetch('/api/rooms', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}` 
-        },
         body: JSON.stringify({ name: newRoomName })
       });
 
@@ -87,8 +84,17 @@ export function Rooms() {
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {rooms.map(r => (
-             <li key={r.id} style={{ padding: '16px', backgroundColor: '#fff', borderRadius: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', fontSize: '16px', fontWeight: 'bold' }}>
-               🏠 {r.name}
+             <li 
+               key={r.id} 
+               onClick={() => navigate(`/transactions?roomId=${r.id}`)}
+               style={{ 
+                 padding: '16px', backgroundColor: '#fff', borderRadius: '16px', marginBottom: '12px', 
+                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)', fontSize: '16px', fontWeight: 'bold',
+                 display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer'
+               }}
+             >
+               <div>🏠 {r.name}</div>
+               <div style={{ fontSize: '13px', color: '#8b95a1', fontWeight: 'normal' }}>내역 보기 〉</div>
              </li>
           ))}
         </ul>

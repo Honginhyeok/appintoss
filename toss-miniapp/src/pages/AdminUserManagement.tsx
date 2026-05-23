@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '../components/tds';
 import { AssignModal } from '../components/AssignModal';
+import { apiFetch } from '../utils/env';
 
 export function AdminUserManagement() {
   const [users, setUsers] = useState<any[]>([]);
@@ -10,9 +11,7 @@ export function AdminUserManagement() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/users', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
+      const res = await apiFetch('/api/users');
       if (res.ok) {
         const data = await res.json();
         setUsers(data);

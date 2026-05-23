@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../utils/env';
 import { Button, TextField, BottomSheet } from '../components/tds';
 
@@ -21,9 +22,13 @@ const CATEGORIES: Record<string, string> = {
 function fmt(n: number) { return n.toLocaleString('ko-KR') + '원'; }
 
 export function TransactionHistory() {
+  const [searchParams] = useSearchParams();
+  const initialRoomId = searchParams.get('roomId') || '';
+
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
+  const [filterRoomId, setFilterRoomId] = useState(initialRoomId);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [rooms, setRooms] = useState<any[]>([]);
@@ -85,11 +90,15 @@ export function TransactionHistory() {
     await load();
   };
 
-  const filtered = filter === 'ALL' ? txs : txs.filter(t => t.type === filter);
+  const filtered = txs.filter(t => {
+    if (filter !== 'ALL' && t.type !== filter) return false;
+    if (filterRoomId && t.roomId !== filterRoomId) return false;
+    return true;
+  });
 
-  // 요약 계산
-  const totalIncome = txs.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
-  const totalExpense = txs.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
+  // 요약 계산 (필터링된 목록 기준)
+  const totalIncome = filtered.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
+  const totalExpense = filtered.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
 
   return (
     <div style={{ padding: '24px', minHeight: '100vh', background: '#fff' }}>
@@ -113,22 +122,30 @@ export function TransactionHistory() {
         </Button>
       </div>
 
-      {/* 필터 탭 */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-        {(['ALL', 'INCOME', 'EXPENSE'] as const).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            style={{
-              flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-              fontSize: '13px', fontWeight: '600', transition: 'all 0.15s',
-              background: filter === f ? '#191f28' : '#f2f4f6',
-              color: filter === f ? '#fff' : '#6b7684',
-            }}
+      {/* 필터 헤더 (전체/수입/지출 및 특정 방 필터 상태) */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {(['ALL', 'INCOME', 'EXPENSE'] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              style={{
+                padding: '8px 16px', borderRadius: '20px', fontSize: '14px', fontWeight: 'bold', border: 'none', cursor: 'pointer',
+                background: filter === f ? '#3182f6' : '#f2f4f6', color: filter === f ? '#fff' : '#4e5968'
+              }}
+            >
+              {f === 'ALL' ? '전체' : f === 'INCOME' ? '수입' : '지출'}
+            </button>
+          ))}
+        </div>
+        {filterRoomId && (
+          <button 
+            onClick={() => setFilterRoomId('')}
+            style={{ fontSize: '13px', color: '#8b95a1', background: 'none', border: 'none', cursor: 'pointer' }}
           >
-            {f === 'ALL' ? '전체' : f === 'INCOME' ? '수입' : '지출'}
+            특정 방 필터 해제 ✕
           </button>
-        ))}
+        )}
       </div>
 
       {/* 리스트 */}
@@ -197,7 +214,7 @@ export function TransactionHistory() {
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#4e5968', marginBottom: '8px' }}>카테고리</label>
           <select value={category} onChange={e => setCategory(e.target.value)}
-            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: '#f2f4f6', fontSize: '16px', outline: 'none', boxSizing: 'border-box' as const }}>
+            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: '#f2f4f6', color: '#191f28', fontSize: '16px', outline: 'none', boxSizing: 'border-box' as const }}>
             {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>
@@ -209,7 +226,7 @@ export function TransactionHistory() {
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#4e5968', marginBottom: '8px' }}>관련 방</label>
           <select value={roomId} onChange={e => setRoomId(e.target.value)}
-            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: '#f2f4f6', fontSize: '16px', outline: 'none', boxSizing: 'border-box' as const }}>
+            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: '#f2f4f6', color: '#191f28', fontSize: '16px', outline: 'none', boxSizing: 'border-box' as const }}>
             <option value="">공통 (방 없음)</option>
             {rooms.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>

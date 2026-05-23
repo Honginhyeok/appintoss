@@ -30,6 +30,7 @@ interface LoginParams {
   username?: string;
   password?: string;
   phone?: string;
+  inToss?: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -71,7 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (params: LoginParams) => {
     try {
-      const body: Record<string, string> = { role: params.role };
+      const body: Record<string, any> = { role: params.role };
+      if (params.inToss !== undefined) {
+        body.inToss = params.inToss;
+      }
+      
       if (params.role === 'LANDLORD') {
         body.username = params.username || '';
         body.password = params.password || '';

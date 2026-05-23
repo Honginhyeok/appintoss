@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/env';
 
@@ -20,6 +21,7 @@ function Skeleton({ w = '100%', h = '16px', r = '8px' }: { w?: string; h?: strin
 
 export function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [txs, setTxs] = useState<Transaction[]>([]);
@@ -140,32 +142,32 @@ export function Dashboard() {
         ) : (
           <>
             {/* 미납/연체 */}
-            <a href="/payment-status" style={{ flex: 1, textDecoration: 'none', background: (unpaidCount + overdueCount) > 0 ? '#ffeeee' : '#f0faf6', borderRadius: '16px', padding: '14px', textAlign: 'center' }}>
+            <div onClick={() => navigate('/payment-status')} style={{ flex: 1, textDecoration: 'none', background: (unpaidCount + overdueCount) > 0 ? '#ffeeee' : '#f0faf6', borderRadius: '16px', padding: '14px', textAlign: 'center', cursor: 'pointer' }}>
               <div style={{ fontSize: '11px', fontWeight: '600', color: (unpaidCount + overdueCount) > 0 ? '#f04452' : '#03b26c', marginBottom: '4px' }}>
                 {overdueCount > 0 ? '🚨 연체' : unpaidCount > 0 ? '⏳ 미납' : '✅ 완납'}
               </div>
               <div style={{ fontSize: '24px', fontWeight: '800', color: (unpaidCount + overdueCount) > 0 ? '#f04452' : '#03b26c' }}>
                 {overdueCount + unpaidCount}명
               </div>
-            </a>
+            </div>
 
             {/* 입주 현황 */}
-            <a href="/rooms" style={{ flex: 1, textDecoration: 'none', background: '#e8f3ff', borderRadius: '16px', padding: '14px', textAlign: 'center' }}>
+            <div onClick={() => navigate('/rooms')} style={{ flex: 1, textDecoration: 'none', background: '#e8f3ff', borderRadius: '16px', padding: '14px', textAlign: 'center', cursor: 'pointer' }}>
               <div style={{ fontSize: '11px', fontWeight: '600', color: '#3182f6', marginBottom: '4px' }}>🏠 입주</div>
               <div style={{ fontSize: '24px', fontWeight: '800', color: '#3182f6' }}>
                 {occupiedRooms.length}/{rooms.length}
               </div>
-            </a>
+            </div>
 
             {/* 공실 */}
-            <a href="/rooms" style={{ flex: 1, textDecoration: 'none', background: vacantRooms.length > 0 ? '#fff9e7' : '#f0faf6', borderRadius: '16px', padding: '14px', textAlign: 'center' }}>
+            <div onClick={() => navigate('/rooms')} style={{ flex: 1, textDecoration: 'none', background: vacantRooms.length > 0 ? '#fff9e7' : '#f0faf6', borderRadius: '16px', padding: '14px', textAlign: 'center', cursor: 'pointer' }}>
               <div style={{ fontSize: '11px', fontWeight: '600', color: vacantRooms.length > 0 ? '#fe9800' : '#03b26c', marginBottom: '4px' }}>
                 🚪 공실
               </div>
               <div style={{ fontSize: '24px', fontWeight: '800', color: vacantRooms.length > 0 ? '#fe9800' : '#03b26c' }}>
                 {vacantRooms.length}개
               </div>
-            </a>
+            </div>
           </>
         )}
       </div>
@@ -180,16 +182,16 @@ export function Dashboard() {
             { href: '/transactions', icon: '📊', label: '거래 내역', count: `${txs.length}건` },
             { href: '/health', icon: '🩺', label: '시스템 진단', count: '확인하기' },
           ].map(a => (
-            <a key={a.href} href={a.href} style={{
+            <div key={a.href} onClick={() => navigate(a.href)} style={{
               display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none',
-              background: '#fff', borderRadius: '14px', padding: '14px', transition: 'background 0.15s',
+              background: '#fff', borderRadius: '14px', padding: '14px', transition: 'background 0.15s', cursor: 'pointer'
             }}>
               <span style={{ fontSize: '24px' }}>{a.icon}</span>
               <div>
                 <div style={{ fontSize: '14px', fontWeight: '600', color: '#191f28' }}>{a.label}</div>
                 <div style={{ fontSize: '12px', color: '#8b95a1' }}>{loading ? '...' : a.count}</div>
               </div>
-            </a>
+            </div>
           ))}
         </div>
       </div>
@@ -198,7 +200,7 @@ export function Dashboard() {
       <div style={{ padding: '24px 20px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <span style={{ fontSize: '16px', fontWeight: '700', color: '#191f28' }}>최근 거래</span>
-          <a href="/transactions" style={{ fontSize: '13px', color: '#3182f6', textDecoration: 'none', fontWeight: '600' }}>전체보기 →</a>
+          <div onClick={() => navigate('/transactions')} style={{ fontSize: '13px', color: '#3182f6', textDecoration: 'none', fontWeight: '600', cursor: 'pointer' }}>전체보기 →</div>
         </div>
 
         {loading ? (

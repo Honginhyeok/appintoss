@@ -9,7 +9,8 @@ const router = Router();
 router.get('/', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user.id;
-    if (req.user.role !== 'USER' && req.user.role !== 'ADMIN') {
+    const userRoles = req.user.roles || [req.user.role];
+    if (!userRoles.includes('LANDLORD') && !userRoles.includes('ADMIN') && !userRoles.includes('USER')) {
       return res.status(403).json({ error: '권한이 없습니다.' });
     }
 
@@ -28,12 +29,29 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res) => {
 router.post('/', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user.id;
-    if (req.user.role !== 'USER' && req.user.role !== 'ADMIN') {
+    const userRoles = req.user.roles || [req.user.role];
+    if (!userRoles.includes('LANDLORD') && !userRoles.includes('ADMIN') && !userRoles.includes('USER')) {
       return res.status(403).json({ error: '권한이 없습니다.' });
     }
     
     let { tenantId } = req.body;
     if (!tenantId) tenantId = null;
+
+    // 검증 로직: 프리미엄 구독자 여부 및 생성된 초대코드 개수 확인
+    const userWithLimits = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { _count: { select: { invitations: true } } }
+    });
+    
+    if (!userWithLimits) return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+    
+    // 초대코드가 3개 이상이면 결제 유도
+    if (!userWithLimits.isSubscribed && userWithLimits._count.invitations >= 3) {
+      return res.status(403).json({ 
+        code: 'UPGRADE_REQUIRED', 
+        message: '무료 버전에서는 초대코드를 최대 3개까지만 생성할 수 있습니다. 프리미엄 요금제로 업그레이드해 주세요.' 
+      });
+    }
 
     // Generate a secure random 8-character string
     const code = crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -112,12 +130,13 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res) 
 router.get('/tenants', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user.id;
-    if (req.user.role !== 'USER' && req.user.role !== 'ADMIN') {
+    const userRoles = req.user.roles || [req.user.role];
+    if (!userRoles.includes('LANDLORD') && !userRoles.includes('ADMIN') && !userRoles.includes('USER')) {
       return res.status(403).json({ error: '권한이 없습니다.' });
     }
 
     const tenantUsers = await prisma.user.findMany({
-      where: { landlordId: userId, role: 'TENANT' },
+      where: { landlordId: userId, roles: { has: 'TENANT' } },
       select: { id: true, username: true, status: true, createdAt: true }
     });
 
@@ -134,7 +153,7 @@ router.delete('/tenants/:tenantId', authenticateToken, async (req: Authenticated
     const tenantId = req.params.tenantId as string;
 
     const tenantUser = await prisma.user.findUnique({ where: { id: tenantId } });
-    if (!tenantUser || tenantUser.landlordId !== userId || tenantUser.role !== 'TENANT') {
+    if (!tenantUser || tenantUser.landlordId !== userId || !tenantUser.roles.includes('TENANT')) {
       return res.status(404).json({ error: '임차인 계정을 찾을 수 없습니다.' });
     }
 

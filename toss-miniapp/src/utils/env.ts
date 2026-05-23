@@ -7,16 +7,31 @@ export function isTossApp(): boolean {
 }
 
 /**
+ * API Base URL
+ * - 개발: Vite 프록시가 /api → localhost:3000 으로 중계
+ * - 프로덕션(토스 미니앱): GCP Cloud Run 직접 호출
+ */
+const API_BASE_URL = 'https://notification-dashboard-1042551861454.asia-northeast1.run.app';
+
+/**
  * 로컬 토큰 관리
  */
 export function getToken(): string | null {
-  return localStorage.getItem('token');
+  try {
+    return localStorage.getItem('token');
+  } catch (e) {
+    return null;
+  }
 }
 export function setToken(token: string) {
-  localStorage.setItem('token', token);
+  try {
+    localStorage.setItem('token', token);
+  } catch (e) {}
 }
 export function clearToken() {
-  localStorage.removeItem('token');
+  try {
+    localStorage.removeItem('token');
+  } catch (e) {}
 }
 
 /**
@@ -32,10 +47,13 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, {
+  const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+
+  const res = await fetch(fullUrl, {
     ...options,
-    credentials: 'include',
+    credentials: import.meta.env.DEV ? 'include' : 'same-origin',
     headers,
   });
   return res;
 }
+

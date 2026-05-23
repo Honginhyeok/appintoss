@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button, BottomSheet, Select } from './tds';
+import { apiFetch } from '../utils/env';
 
 export function AssignModal({ isOpen, tenantId, onClose, onAssigned }: { isOpen: boolean, tenantId: string, onClose: () => void, onAssigned: () => void }) {
   const [landlords, setLandlords] = useState<{label: string, value: string}[]>([]);
@@ -15,7 +16,7 @@ export function AssignModal({ isOpen, tenantId, onClose, onAssigned }: { isOpen:
     if (!isOpen) return;
     const fetchLandlords = async () => {
       try {
-        const res = await fetch('/api/users?role=LANDLORD', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const res = await apiFetch('/api/users?role=LANDLORD');
         if (res.ok) {
           const data = await res.json();
           // API가 ?role=LANDLORD 를 지원한다고 가정하거나 필터링 처리
@@ -38,7 +39,7 @@ export function AssignModal({ isOpen, tenantId, onClose, onAssigned }: { isOpen:
     }
     const fetchRooms = async () => {
       try {
-        const res = await fetch(`/api/admin/rooms/${selectedLandlord}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const res = await apiFetch(`/api/admin/rooms/${selectedLandlord}`);
         if (res.ok) {
           const data = await res.json();
           setRooms(data.map((r: any) => ({ label: r.name, value: r.id })));
@@ -57,12 +58,8 @@ export function AssignModal({ isOpen, tenantId, onClose, onAssigned }: { isOpen:
     }
     setSaving(true);
     try {
-      const res = await fetch(`/api/users/${tenantId}/assign`, {
+      const res = await apiFetch(`/api/users/${tenantId}/assign`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
         body: JSON.stringify({ landlordId: selectedLandlord, roomId: selectedRoom })
       });
       if (res.ok) {

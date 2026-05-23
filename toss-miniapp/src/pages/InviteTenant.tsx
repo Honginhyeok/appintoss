@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch, isTossApp } from '../utils/env';
 import { Button } from '../components/tds';
+import { UpgradeModal } from '../components/UpgradeModal';
 
 interface Invitation {
   id: string;
@@ -45,6 +46,8 @@ export function InviteTenant() {
     setTimeout(() => setToast(''), 3000);
   };
 
+  const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false);
+
   const generate = async () => {
     setGenerating(true);
     try {
@@ -52,6 +55,16 @@ export function InviteTenant() {
         method: 'POST',
         body: JSON.stringify({ tenantId: selectedTenantId || null }),
       });
+
+      if (res.status === 403) {
+        const err = await res.json();
+        if (err.code === 'UPGRADE_REQUIRED') {
+          setUpgradeModalOpen(true);
+          setGenerating(false);
+          return;
+        }
+      }
+
       if (res.ok) {
         showToast('새 초대코드가 발급되었습니다! 🎉');
         await load();
@@ -137,7 +150,7 @@ export function InviteTenant() {
           <select
             value={selectedTenantId}
             onChange={e => setSelectedTenantId(e.target.value)}
-            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: '#fff', fontSize: '16px', outline: 'none', boxSizing: 'border-box' as const }}
+            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: '#fff', color: '#191f28', fontSize: '16px', outline: 'none', boxSizing: 'border-box' as const }}
           >
             <option value="">세입자 지정 안함</option>
             {tenants.map(t => (
@@ -217,6 +230,16 @@ export function InviteTenant() {
           })}
         </div>
       )}
+
+      {/* 프리미엄 업그레이드 전면 모달 */}
+      <UpgradeModal 
+        isOpen={isUpgradeModalOpen} 
+        onClose={() => setUpgradeModalOpen(false)} 
+        onSuccess={() => {
+          setUpgradeModalOpen(false);
+          generate();
+        }}
+      />
     </div>
   );
 }

@@ -82,7 +82,7 @@ model User {
   plainPassword String?
   email         String?
   phone         String?
-  role          String        @default("USER")    // ADMIN | USER
+  roles         String[]      @default(["USER"])  // ADMIN | LANDLORD | TENANT (multi-role array)
   status        String        @default("PENDING") // PENDING | ACTIVE | SUSPENDED
   isActive      Boolean       @default(true)      // 초대코드 삭제 시 false로 비활성화
   createdAt     DateTime      @default(now())
@@ -111,6 +111,8 @@ model User {
   announcements  Announcement[]
   maintenanceReq MaintenanceRequest[] @relation("TenantRequests")
   subscriptions  PushSubscription[]   @relation("UserSubscriptions")
+  posts          Post[]               @relation("UserPosts")
+  comments       Comment[]            @relation("UserComments")
 }
 
 model Invitation {
@@ -180,4 +182,38 @@ model BellNotification {
   actionTab   String?  // 클릭 시 이동할 탭 (payments, maintenance 등)
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Post {
+  id         String   @id @default(uuid())
+  title      String
+  content    String
+  category   String   // '공지사항' | '민원접수' | '일반'
+  authorId   String
+  author     User     @relation("UserPosts", fields: [authorId], references: [id])
+  landlordId String   // To isolate posts per landlord workspace
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  comments   Comment[]
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("UserComments", fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

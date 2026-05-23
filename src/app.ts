@@ -16,6 +16,9 @@ import boardRoutes from './routes/boardRoutes';
 import webpushRoutes from './routes/webpushRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import bellNotificationRoutes from './routes/bellNotificationRoutes';
+import inAppNotificationRoutes from './routes/inAppNotificationRoutes';
+import communityBoardRoutes from './routes/communityBoardRoutes';
+import tossAuthRoutes from './routes/tossAuthRoutes';
 
 const app = express();
 
@@ -25,6 +28,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Set up routes
+app.use('/api/auth/toss', tossAuthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
@@ -38,5 +42,7 @@ app.use('/api/board', boardRoutes);
 app.use('/api/webpush', webpushRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/bell-notifications', bellNotificationRoutes);
+app.use('/api/in-app-notifications', inAppNotificationRoutes);
+app.use('/api/community-board', communityBoardRoutes);
 
 export default app;

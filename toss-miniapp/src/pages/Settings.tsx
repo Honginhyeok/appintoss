@@ -104,7 +104,7 @@ export function Settings() {
               onClick={() => setView('account')}
             />
           )}
-          {user?.role !== 'TENANT' && (
+          {user?.role !== 'TENANT' && !user?.username?.startsWith('toss_') && (
             <ListRow
               icon={<span>🔒</span>}
               title="비밀번호 변경"
@@ -137,7 +137,7 @@ export function Settings() {
           <select
             value={bank}
             onChange={(e) => setBank(e.target.value)}
-            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: '#f2f4f6', fontSize: '16px', outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid transparent', backgroundColor: '#f2f4f6', color: '#191f28', fontSize: '16px', outline: 'none', boxSizing: 'border-box' }}
           >
             <option value="">은행 선택</option>
             <option value="KB국민">KB국민은행</option>

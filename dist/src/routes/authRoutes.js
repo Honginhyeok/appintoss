@@ -77,7 +77,7 @@ router.post('/register', (req, res) => __awaiter(void 0, void 0, void 0, functio
                     email: dummyEmail,
                     password: hashedPassword,
                     plainPassword: dummyPassword,
-                    role: 'TENANT',
+                    roles: ['TENANT'],
                     status: 'ACTIVE',
                     roomId: resolvedRoomId
                 }
@@ -96,7 +96,7 @@ router.post('/register', (req, res) => __awaiter(void 0, void 0, void 0, functio
                 return res.status(400).json({ error: '이미 존재하는 아이디입니다' });
             const hashedPassword = yield bcrypt_1.default.hash(password, 10);
             yield db_1.prisma.user.create({
-                data: { username, name, phone: phone || null, email, password: hashedPassword, plainPassword: password, role: 'LANDLORD', status: 'ACTIVE' }
+                data: { username, name, phone: phone || null, email, password: hashedPassword, plainPassword: password, roles: ['LANDLORD'], status: 'ACTIVE' }
             });
             return res.json({ success: true, message: '임대인 회원가입이 완료되었습니다. 로그인해 주세요.' });
         }
@@ -147,7 +147,7 @@ router.post('/register-tenant', (req, res) => __awaiter(void 0, void 0, void 0, 
                 email: dummyEmail,
                 password: hashedPassword,
                 plainPassword: dummyPassword,
-                role: 'TENANT',
+                roles: ['TENANT'],
                 status: 'ACTIVE',
                 landlordId: invitation.landlordId || null,
                 roomId: mappedRoomId || null
@@ -174,6 +174,7 @@ router.post('/register-tenant', (req, res) => __awaiter(void 0, void 0, void 0, 
 }));
 // ─── LOGIN ──────────────────────────────────────────────────────────
 router.post('/login', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c;
     try {
         const { loginType, role } = req.body;
         const reqRole = role || (loginType === 'tenant' ? 'TENANT' : 'LANDLORD');
@@ -209,9 +210,9 @@ router.post('/login', (req, res) => __awaiter(void 0, void 0, void 0, function* 
             if (user.status === 'SUSPENDED')
                 return res.status(403).json({ error: '계정이 정지되었습니다' });
             // TENANT는 비밀번호 검증 생략 → 즉시 토큰 발급
-            const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, role: user.role, status: user.status }, env_1.JWT_SECRET, { expiresIn: '7d' });
+            const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, roles: user.roles, currentRole: 'TENANT', status: user.status }, env_1.JWT_SECRET, { expiresIn: '7d' });
             res.cookie('token', token, { httpOnly: true, secure: env_1.NODE_ENV === 'production', sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
-            return res.json({ success: true, user: { id: user.id, username: user.username, role: user.role, status: user.status } });
+            return res.json({ success: true, token, user: { id: user.id, username: user.username, roles: user.roles, currentRole: 'TENANT', status: user.status } });
         }
         else if (reqRole === 'LANDLORD') {
             const { username, password } = req.body;
@@ -220,7 +221,7 @@ router.post('/login', (req, res) => __awaiter(void 0, void 0, void 0, function* 
             const user = yield db_1.prisma.user.findUnique({ where: { username } });
             if (!user)
                 return res.status(401).json({ error: '아이디 또는 비밀번호가 일치하지 않습니다' });
-            if (user.role === 'TENANT')
+            if (((_a = user.roles) === null || _a === void 0 ? void 0 : _a.includes('TENANT')) && !((_b = user.roles) === null || _b === void 0 ? void 0 : _b.includes('LANDLORD')))
                 return res.status(403).json({ error: '임대인 로그인 폼을 이용해 주세요' });
             // LANDLORD는 비밀번호 필수 검증
             const valid = yield bcrypt_1.default.compare(password, user.password);
@@ -230,9 +231,16 @@ router.post('/login', (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 return res.status(403).json({ error: '관리자 승인 대기 중입니다' });
             if (user.status === 'SUSPENDED')
                 return res.status(403).json({ error: '계정이 정지되었습니다' });
-            const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, role: user.role, status: user.status }, env_1.JWT_SECRET, { expiresIn: '7d' });
+            // PC 웹 버전 (inToss === false) 인 경우 구독 여부 검사
+            if (req.body.inToss === false) {
+                const isSuperAdmin = user.username === 'wjsdudtns' || ((_c = user.roles) === null || _c === void 0 ? void 0 : _c.includes('ADMIN'));
+                if (!isSuperAdmin && !user.isSubscribed) {
+                    return res.status(403).json({ error: 'PC 웹 버전은 프리미엄 구독자 전용입니다. 토스 앱에서 먼저 구독해 주세요.' });
+                }
+            }
+            const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, roles: user.roles, currentRole: 'LANDLORD', status: user.status }, env_1.JWT_SECRET, { expiresIn: '7d' });
             res.cookie('token', token, { httpOnly: true, secure: env_1.NODE_ENV === 'production', sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
-            return res.json({ success: true, user: { id: user.id, username: user.username, role: user.role, status: user.status } });
+            return res.json({ success: true, token, user: { id: user.id, username: user.username, roles: user.roles, currentRole: 'LANDLORD', status: user.status } });
         }
         else {
             return res.status(400).json({ error: '유효하지 않은 역할(Role)입니다' });
@@ -243,6 +251,80 @@ router.post('/login', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         res.status(500).json({ error: e.message || 'Internal Server Error' });
     }
 }));
+// ─── TOSS OAUTH LOGIN CALLBACK (WEB) ───────────────────────────────────
+const axios_1 = __importDefault(require("axios"));
+router.get('/toss/callback', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const { code, state, error } = req.query;
+        if (error) {
+            return res.redirect(`/?error=${encodeURIComponent(String(error))}`);
+        }
+        if (!code) {
+            return res.redirect(`/?error=No+Code`);
+        }
+        const { TOSS_CLIENT_ID, TOSS_SECRET_KEY } = process.env;
+        if (!TOSS_CLIENT_ID || !TOSS_SECRET_KEY) {
+            return res.status(500).send('Toss OAuth credentials not configured on server.');
+        }
+        const redirectUri = 'https://notification-dashboard-1042551861454.asia-northeast1.run.app/api/auth/toss/callback';
+        // 1. Get Access Token
+        const tokenResponse = yield axios_1.default.post('https://oauth2-api.toss.im/api/v1/token', new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: TOSS_CLIENT_ID,
+            client_secret: TOSS_SECRET_KEY,
+            code: String(code),
+            redirect_uri: redirectUri
+        }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+        const { access_token } = tokenResponse.data;
+        // 2. Get User Info
+        const userResponse = yield axios_1.default.get('https://oauth2-api.toss.im/api/v1/user-info', {
+            headers: { Authorization: `Bearer ${access_token}` }
+        });
+        const tossUser = userResponse.data;
+        const phone = tossUser.phoneNumber || tossUser.phone || '';
+        const name = tossUser.name || '토스사장님';
+        // 3. Find or Create User (Landlord for web)
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        const targetUsername = `toss_${cleanPhone || Math.random().toString(36).slice(-6)}`;
+        let user = yield db_1.prisma.user.findFirst({
+            where: {
+                OR: cleanPhone ? [
+                    { username: targetUsername },
+                    { phone: cleanPhone },
+                    { phone: phone }
+                ] : [{ username: targetUsername }]
+            }
+        });
+        if (!user) {
+            // Create new landlord
+            const dummyPassword = Math.random().toString(36).slice(-8);
+            const hashedPassword = yield bcrypt_1.default.hash(dummyPassword, 10);
+            user = yield db_1.prisma.user.create({
+                data: {
+                    username: targetUsername,
+                    name: name,
+                    phone: cleanPhone || null,
+                    email: `${targetUsername}@dummy.com`,
+                    password: hashedPassword,
+                    plainPassword: dummyPassword,
+                    roles: ['LANDLORD'],
+                    status: 'ACTIVE'
+                }
+            });
+        }
+        // 4. Generate JWT & Redirect
+        const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, roles: user.roles, currentRole: 'LANDLORD', status: user.status }, env_1.JWT_SECRET, { expiresIn: '7d' });
+        // Set cookie and redirect back to root with token hash
+        res.cookie('token', token, { httpOnly: true, secure: env_1.NODE_ENV === 'production', sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
+        // Frontend JS will parse this hash to log in instantly
+        res.redirect(`/#access_token=${token}`);
+    }
+    catch (e) {
+        console.error('Toss OAuth Error:', ((_a = e.response) === null || _a === void 0 ? void 0 : _a.data) || e.message);
+        res.redirect(`/?error=TossLoginFailed`);
+    }
+}));
 // ─── LOGOUT ─────────────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
     res.clearCookie('token');
@@ -250,6 +332,7 @@ router.post('/logout', (req, res) => {
 });
 // ─── ME ─────────────────────────────────────────────────────────────
 router.get('/me', authMiddleware_1.authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     try {
         const userInDb = yield db_1.prisma.user.findUnique({ where: { id: req.user.id } });
         if (!userInDb)
@@ -260,14 +343,15 @@ router.get('/me', authMiddleware_1.authenticateToken, (req, res) => __awaiter(vo
             name: userInDb.name,
             phone: userInDb.phone,
             email: userInDb.email,
-            role: userInDb.role,
+            role: req.user.currentRole || (((_a = userInDb.roles) === null || _a === void 0 ? void 0 : _a.includes('TENANT')) ? 'TENANT' : (((_b = userInDb.roles) === null || _b === void 0 ? void 0 : _b.includes('LANDLORD')) ? 'LANDLORD' : 'USER')),
+            roles: userInDb.roles,
             status: userInDb.status,
             settlementBank: userInDb.settlementBank,
             settlementAccount: userInDb.settlementAccount,
             settlementName: userInDb.settlementName
         };
         // 임차인이면 배정된 방, 임대인 정산 정보, 월세 금액 포함
-        if (userInDb.role === 'TENANT') {
+        if (userInDb.roles.includes('TENANT')) {
             if (userInDb.roomId) {
                 const room = yield db_1.prisma.room.findUnique({ where: { id: userInDb.roomId } });
                 if (room)

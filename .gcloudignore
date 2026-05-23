@@ -1,0 +1,21 @@
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud. It follows the same syntax as .gitignore.
+
+.gcloudignore
+.git
+.gitignore
+
+# Node
+node_modules/
+
+# Frontend (not needed for backend deployment)
+toss-miniapp/
+public/uploads/
+
+# IDE / OS
+.vscode/
+.idea/
+*.log
+backend.log
+auto_test_dashboard.png
+step*.png

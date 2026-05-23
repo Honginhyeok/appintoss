@@ -7,6 +7,35 @@
     <title>toss-miniapp</title>
   </head>
   <body>
+    <!-- [Ait 전역 방어막] Granite/Metro가 Ait를 참조하기 전에 반드시 먼저 실행 -->
+    <script>
+      (function() {
+        if (typeof globalThis !== 'undefined' && !globalThis.Ait) {
+          globalThis.Ait = {
+            call: function(method, params) {
+              console.warn('[Polyfill Ait] Native method called:', method, params);
+              if (method === 'appLogin') return JSON.stringify({ authorizationCode: 'mock_auth_code_local_test' });
+              return null;
+            },
+            version: '1.0.0'
+          };
+        }
+        if (typeof window !== 'undefined' && !window.Ait) {
+          window.Ait = globalThis.Ait;
+        }
+      })();
+    </script>
+    <div id="error-log" style="color: red; font-size: 12px; padding: 10px; word-break: break-all; white-space: pre-wrap; z-index: 999999; position: absolute;"></div>
+    <script>
+      window.onerror = function(msg, url, line, col, error) {
+        var errDiv = document.getElementById('error-log');
+        if (errDiv) errDiv.innerText += '\\nError: ' + msg + '\\nURL: ' + url + '\\nLine: ' + line + ':' + col + '\\n' + (error ? error.stack : '');
+      };
+      window.addEventListener('unhandledrejection', function(event) {
+        var errDiv = document.getElementById('error-log');
+        if (errDiv) errDiv.innerText += '\\nUnhandled Promise: ' + event.reason;
+      });
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

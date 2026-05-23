@@ -1,4 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import './polyfill';
+import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+
 import { TDSProvider } from './components/tds';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -13,6 +15,8 @@ import { InviteTenant } from './pages/InviteTenant';
 import { TransactionHistory } from './pages/TransactionHistory';
 import { PaymentStatus } from './pages/PaymentStatus';
 import { HealthCheck } from './pages/HealthCheck';
+import { TopNav } from './components/TopNav';
+import { FloatingLogger } from './components/FloatingLogger';
 
 /* ─── Private Route ─── */
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -49,11 +53,12 @@ function BottomNav() {
         { path: '/dashboard', label: '홈', icon: '🏠', iconActive: '🏠' },
         { path: '/rooms', label: '방', icon: '🚪', iconActive: '🚪' },
         { path: '/tenants', label: '세입자', icon: '👤', iconActive: '👤' },
-        { path: '/transactions', label: '거래', icon: '📊', iconActive: '📊' },
+        { path: '/board', label: '게시판', icon: '📋', iconActive: '📋' },
         { path: '/settings', label: '설정', icon: '⚙️', iconActive: '⚙️' },
       ]
     : [
         { path: '/payment', label: '납부', icon: '💳', iconActive: '💳' },
+        { path: '/board', label: '게시판', icon: '📋', iconActive: '📋' },
         { path: '/settings', label: '설정', icon: '⚙️', iconActive: '⚙️' },
       ];
 
@@ -110,6 +115,8 @@ function BottomNav() {
   );
 }
 
+import { Board } from './pages/Board';
+
 /* ─── App Content ─── */
 function AppContent() {
   const { user } = useAuth();
@@ -121,6 +128,7 @@ function AppContent() {
       background: '#ffffff', boxShadow: '0 0 20px rgba(0,0,0,0.05)',
       position: 'relative',
     }}>
+      <TopNav />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<PrivateRoute><Navigate to={defaultPath} replace /></PrivateRoute>} />
@@ -131,6 +139,7 @@ function AppContent() {
         <Route path="/rooms" element={<PrivateRoute><Rooms /></PrivateRoute>} />
         <Route path="/tenants" element={<PrivateRoute><Tenants /></PrivateRoute>} />
         <Route path="/invitations" element={<PrivateRoute><InviteTenant /></PrivateRoute>} />
+        <Route path="/board" element={<PrivateRoute><Board /></PrivateRoute>} />
         <Route path="/transactions" element={<PrivateRoute><TransactionHistory /></PrivateRoute>} />
         <Route path="/payment-status" element={<PrivateRoute><PaymentStatus /></PrivateRoute>} />
         <Route path="/health" element={<PrivateRoute><HealthCheck /></PrivateRoute>} />
@@ -143,15 +152,18 @@ function AppContent() {
 /* ─── Root ─── */
 function App() {
   return (
-    <ErrorBoundary>
-      <TDSProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
-        </AuthProvider>
-      </TDSProvider>
-    </ErrorBoundary>
+    <>
+      <FloatingLogger />
+      <ErrorBoundary>
+        <TDSProvider>
+          <AuthProvider>
+            <HashRouter>
+              <AppContent />
+            </HashRouter>
+          </AuthProvider>
+        </TDSProvider>
+      </ErrorBoundary>
+    </>
   );
 }
 
