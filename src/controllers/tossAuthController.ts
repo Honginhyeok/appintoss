@@ -444,9 +444,10 @@ export const handleTossCallback = async (req: Request, res: Response) => {
       console.error('Toss Web OAuth Error:', tossError);
       return res.send(`
         <script>
-          if (window.opener) {
-            window.opener.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스 로그인 인증에 실패했습니다.' }, '*');
-            window.close();
+          const target = window.opener || window.parent;
+          if (target && target !== window) {
+            target.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스 로그인 인증에 실패했습니다.' }, '*');
+            if (window.opener) window.close();
           } else {
             window.location.href = '/?error=' + encodeURIComponent('토스 로그인 인증에 실패했습니다.');
           }
@@ -457,9 +458,10 @@ export const handleTossCallback = async (req: Request, res: Response) => {
     if (!code) {
       return res.send(`
         <script>
-          if (window.opener) {
-            window.opener.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스 인증 코드가 누락되었습니다.' }, '*');
-            window.close();
+          const target = window.opener || window.parent;
+          if (target && target !== window) {
+            target.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스 인증 코드가 누락되었습니다.' }, '*');
+            if (window.opener) window.close();
           } else {
             window.location.href = '/?error=' + encodeURIComponent('토스 인증 코드가 누락되었습니다.');
           }
@@ -498,9 +500,10 @@ export const handleTossCallback = async (req: Request, res: Response) => {
     if (!cleanPhone) {
       return res.send(`
         <script>
-          if (window.opener) {
-            window.opener.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스에서 전화번호 정보를 가져오지 못했습니다.' }, '*');
-            window.close();
+          const target = window.opener || window.parent;
+          if (target && target !== window) {
+            target.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스에서 전화번호 정보를 가져오지 못했습니다.' }, '*');
+            if (window.opener) window.close();
           } else {
             window.location.href = '/?error=' + encodeURIComponent('토스에서 전화번호 정보를 가져오지 못했습니다.');
           }
@@ -560,9 +563,10 @@ export const handleTossCallback = async (req: Request, res: Response) => {
       if (!isSuperAdmin && !user.isSubscribed) {
         return res.send(`
           <script>
-            if (window.opener) {
-              window.opener.postMessage({ type: 'TOSS_LOGIN_ERROR', error: 'PC 웹 버전은 프리미엄 구독자 전용입니다. 토스 앱에서 먼저 구독해 주세요.' }, '*');
-              window.close();
+            const target = window.opener || window.parent;
+            if (target && target !== window) {
+              target.postMessage({ type: 'TOSS_LOGIN_ERROR', error: 'PC 웹 버전은 프리미엄 구독자 전용입니다. 토스 앱에서 먼저 구독해 주세요.' }, '*');
+              if (window.opener) window.close();
             } else {
               window.location.href = '/?error=' + encodeURIComponent('PC 웹 버전은 프리미엄 구독자 전용입니다. 토스 앱에서 먼저 구독해 주세요.');
             }
@@ -595,11 +599,12 @@ export const handleTossCallback = async (req: Request, res: Response) => {
     const dest = selectedRole === 'TENANT' ? '/payment' : '/dashboard';
     return res.send(`
       <script>
-        if (window.opener) {
-          window.opener.postMessage({ type: 'TOSS_LOGIN_SUCCESS', dest: '${dest}' }, '*');
-          window.close();
+        const target = window.opener || window.parent;
+        if (target && target !== window) {
+          target.postMessage({ type: 'TOSS_LOGIN_SUCCESS', dest: '${dest}' }, '*');
+          if (window.opener) window.close();
         } else {
-          window.location.href = '${dest}';
+          window.location.href = '/';
         }
       </script>
     `);
@@ -608,9 +613,10 @@ export const handleTossCallback = async (req: Request, res: Response) => {
     console.error('Toss Web Callback Error:', error.response?.data || error.message);
     return res.send(`
       <script>
-        if (window.opener) {
-          window.opener.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스 로그인 처리 중 서버 오류가 발생했습니다.' }, '*');
-          window.close();
+        const target = window.opener || window.parent;
+        if (target && target !== window) {
+          target.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스 로그인 처리 중 서버 오류가 발생했습니다.' }, '*');
+          if (window.opener) window.close();
         } else {
           window.location.href = '/?error=' + encodeURIComponent('토스 로그인 처리 중 서버 오류가 발생했습니다.');
         }
