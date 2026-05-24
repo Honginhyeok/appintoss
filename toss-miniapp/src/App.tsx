@@ -117,6 +117,8 @@ function BottomNav() {
 
 import { Board } from './pages/Board';
 
+import { WebGuide } from './pages/WebGuide';
+
 /* ─── App Content ─── */
 function AppContent() {
   const { user } = useAuth();
@@ -143,6 +145,7 @@ function AppContent() {
         <Route path="/transactions" element={<PrivateRoute><TransactionHistory /></PrivateRoute>} />
         <Route path="/payment-status" element={<PrivateRoute><PaymentStatus /></PrivateRoute>} />
         <Route path="/health" element={<PrivateRoute><HealthCheck /></PrivateRoute>} />
+        <Route path="/web-guide" element={<PrivateRoute><WebGuide /></PrivateRoute>} />
       </Routes>
       <BottomNav />
     </div>

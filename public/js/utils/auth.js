@@ -171,7 +171,26 @@ function startTossOAuthLogin() {
   // selectedRole('landlord' or 'tenant')를 대문자로 변환하여 백엔드로 전달
   const roleState = (selectedRole || 'tenant').toUpperCase();
   const tossAuthUrl = `https://oauth2.cert.toss.im/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${roleState}`;
-  window.location.href = tossAuthUrl;
+  
+  const width = 500;
+  const height = 600;
+  const left = (window.innerWidth / 2) - (width / 2) + window.screenX;
+  const top = (window.innerHeight / 2) - (height / 2) + window.screenY;
+  
+  window.open(tossAuthUrl, 'TossLogin', `width=${width},height=${height},top=${top},left=${left},scrollbars=yes`);
+
+  window.addEventListener('message', function authListener(e) {
+    if (e.data && e.data.type === 'TOSS_LOGIN_SUCCESS') {
+      window.removeEventListener('message', authListener);
+      window.location.href = e.data.dest || '/';
+    } else if (e.data && e.data.type === 'TOSS_LOGIN_ERROR') {
+      window.removeEventListener('message', authListener);
+      const errMsg = e.data.error;
+      const modalMsgEl = document.getElementById('error-modal-message');
+      if (modalMsgEl) modalMsgEl.textContent = errMsg;
+      if (typeof openModal === 'function') openModal('error-modal');
+    }
+  });
 }
 
 // ─── 세션/토큰 체크 (방어 코드 포함) ─────────────────────────────
@@ -184,11 +203,16 @@ async function checkAuth() {
       window.location.hash = ''; // 해시 지우기
     }
     
-    // URL에 에러가 있으면 표시
+    // URL에 에러가 있으면 모달 표시
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('error')) {
       const errMsg = urlParams.get('error');
-      if (typeof showToast === 'function') showToast(errMsg === 'TossLoginFailed' ? '토스 로그인에 실패했습니다.' : errMsg);
+      const displayMsg = errMsg === 'TossLoginFailed' ? '토스 로그인에 실패했습니다.' : errMsg;
+      
+      const modalMsgEl = document.getElementById('error-modal-message');
+      if (modalMsgEl) modalMsgEl.textContent = displayMsg;
+      if (typeof openModal === 'function') openModal('error-modal');
+      
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
@@ -220,11 +244,11 @@ async function checkAuth() {
 
     // 사이드바 프로필 버튼에 유저명 표시
     const profileUsername = document.getElementById('profile-username');
-    if (profileUsername) profileUsername.textContent = currentUser.username;
+    if (profileUsername) profileUsername.textContent = currentUser.name || currentUser.username;
 
     // 상단 헤더 프로필 버튼에 유저명 표시
     const mobileProfileUsername = document.getElementById('mobile-profile-username');
-    if (mobileProfileUsername) mobileProfileUsername.textContent = currentUser.username;
+    if (mobileProfileUsername) mobileProfileUsername.textContent = currentUser.name || currentUser.username;
 
     // 사이드바 로그아웃 버튼에 onclick 바인딩
     const logoutBtn = document.getElementById('logout-btn');
@@ -240,9 +264,16 @@ async function checkAuth() {
       }
     }
 
-    // 데이터 로드
-    if (typeof loadAllData === 'function') loadAllData();
-    if (typeof loadBellNotifications === 'function') loadBellNotifications();
+    // 임차인인데 매핑된 방이 없다면 (초대코드 미입력 상태)
+    if (currentUser.role === 'TENANT' && !currentUser.roomName) {
+      if (typeof openModal === 'function') {
+        openModal('tenant-invite-modal');
+      }
+    } else {
+      // 데이터 로드
+      if (typeof loadAllData === 'function') loadAllData();
+      if (typeof loadBellNotifications === 'function') loadBellNotifications();
+    }
 
   } catch (err) {
     console.error('Auth check failed:', err);

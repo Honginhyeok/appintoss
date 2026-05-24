@@ -131,6 +131,45 @@ export function Dashboard() {
         )}
       </div>
 
+      {/* ─── PC 웹 버전 안내 배너 ─── */}
+      <div style={{ padding: '20px 20px 0' }}>
+        <div 
+          onClick={() => {
+            navigator.clipboard.writeText('https://www.checkin-host.com');
+            alert('클립보드에 주소가 복사되었습니다!\nPC나 스마트폰의 브라우저(크롬, 사파리 등)에 붙여넣기 해주세요.');
+          }}
+          style={{
+            background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+            borderRadius: '16px',
+            padding: '16px 20px',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+            cursor: 'pointer',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8', marginBottom: '4px', letterSpacing: '0.3px' }}>
+              더 넓은 화면에서 전문 리포트를!
+            </div>
+            <div style={{ fontSize: '16px', fontWeight: 800 }}>
+              PC 웹 버전 접속하기 💻
+            </div>
+          </div>
+          <div style={{ 
+            background: 'rgba(255,255,255,0.15)', 
+            padding: '8px 14px', 
+            borderRadius: '10px', 
+            fontSize: '13px', 
+            fontWeight: 700 
+          }}>
+            주소 복사
+          </div>
+        </div>
+      </div>
+
       {/* ─── 3대 지표 카드 ─── */}
       <div style={{ padding: '16px 20px 0', display: 'flex', gap: '10px' }}>
         {loading ? (
@@ -180,16 +219,17 @@ export function Dashboard() {
             { href: '/tenants', icon: '👤', label: '세입자 관리', count: `${tenants.length}명` },
             { href: '/invitations', icon: '🎫', label: '초대코드', count: '발급하기' },
             { href: '/transactions', icon: '📊', label: '거래 내역', count: `${txs.length}건` },
-            { href: '/health', icon: '🩺', label: '시스템 진단', count: '확인하기' },
+            { href: '/web-guide', icon: '💻', label: 'PC에서 관리', count: '안내 보기' },
           ].map(a => (
             <div key={a.href} onClick={() => navigate(a.href)} style={{
               display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none',
-              background: '#fff', borderRadius: '14px', padding: '14px', transition: 'background 0.15s', cursor: 'pointer'
+              background: '#fff', borderRadius: '14px', padding: '14px', transition: 'background 0.15s', cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
             }}>
               <span style={{ fontSize: '24px' }}>{a.icon}</span>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: '600', color: '#191f28' }}>{a.label}</div>
-                <div style={{ fontSize: '12px', color: '#8b95a1' }}>{loading ? '...' : a.count}</div>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: '#191f28' }}>{a.label}</div>
+                <div style={{ fontSize: '12px', color: '#8b95a1', marginTop: '2px' }}>{loading ? '...' : a.count}</div>
               </div>
             </div>
           ))}
