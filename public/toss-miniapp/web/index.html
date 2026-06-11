@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>toss-miniapp</title>
+    <script type="module" src="./assets/index-BQLojXEW.js"></script>
+    <link rel="modulepreload" href="./assets/dist-97a07Jl-.js">
+    <link rel="stylesheet" href="./assets/index-c2ELef-X.css">
+    <script type="module">import'data:text/javascript,if(!import.meta.resolve)throw Error("import.meta.resolve not supported")';import.meta.url;import("_").catch(()=>1);(async function*(){})().next();window.__vite_is_modern_browser=true</script>
+    <script type="module">!function(){if(window.__vite_is_modern_browser)return;console.warn("vite: loading legacy chunks, syntax error above and the same error below should be ignored");var e=document.getElementById("vite-legacy-polyfill"),n=document.createElement("script");n.src=e.src,n.onload=function(){System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))},document.body.appendChild(n)}();</script>
+  </head>
+  <body>
+    <!-- [Ait 전역 방어막] Granite/Metro가 Ait를 참조하기 전에 반드시 먼저 실행 -->
+    <script>
+      (function() {
+        if (typeof globalThis !== 'undefined' && !globalThis.Ait) {
+          globalThis.Ait = {
+            call: function(method, params) {
+              console.warn('[Polyfill Ait] Native method called:', method, params);
+              if (method === 'appLogin') return JSON.stringify({ authorizationCode: 'mock_auth_code_local_test' });
+              return null;
+            },
+            version: '1.0.0'
+          };
+        }
+        if (typeof window !== 'undefined' && !window.Ait) {
+          window.Ait = globalThis.Ait;
+        }
+      })();
+    </script>
+    <div id="error-log" style="color: red; font-size: 12px; padding: 10px; word-break: break-all; white-space: pre-wrap; z-index: 999999; position: absolute;"></div>
+    <script>
+      window.onerror = function(msg, url, line, col, error) {
+        var errDiv = document.getElementById('error-log');
+        if (errDiv) errDiv.innerText += '\\nError: ' + msg + '\\nURL: ' + url + '\\nLine: ' + line + ':' + col + '\\n' + (error ? error.stack : '');
+      };
+      window.addEventListener('unhandledrejection', function(event) {
+        var errDiv = document.getElementById('error-log');
+        if (errDiv) errDiv.innerText += '\\nUnhandled Promise: ' + event.reason;
+      });
+    </script>
+    <div id="root"></div>
+    <script nomodule>!function(){var e=document,t=e.createElement("script");if(!("noModule"in t)&&"onbeforeload"in t){var n=!1;e.addEventListener("beforeload",(function(e){if(e.target===t)n=!0;else if(!e.target.hasAttribute("nomodule")||!n)return;e.preventDefault()}),!0),t.type="module",t.src=".",e.head.appendChild(t),t.remove()}}();</script>
+    <script nomodule crossorigin id="vite-legacy-polyfill" src="./assets/polyfills-legacy-Dj5ElO81.js"></script>
+    <script nomodule crossorigin id="vite-legacy-entry" data-src="./assets/index-legacy-C56PDj2L.js">System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))</script>
+  </body>
+</html>

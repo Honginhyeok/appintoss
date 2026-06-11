@@ -121,12 +121,24 @@ export const loginWithToss = async (req: Request, res: Response) => {
 
     // 4-A. 신규 유저이거나, 기존 유저인데 새로운 Role을 추가하려는 경우 → 추가 정보 필요
     if (!user || needsRoleAddition) {
-      const { inviteCode, phone } = req.body;
+      const { inviteCode } = req.body;
+      let { phone } = req.body;
+
+      // Toss API에서 바로 전화번호 추출 시도 (유저가 콘솔에서 필수 동의로 설정한 경우)
+      if (!phone) {
+        const encryptedPhone = tossUser.user_phone || tossUser.phoneNumber || tossUser.phone;
+        if (encryptedPhone) {
+          phone = decryptTossData(encryptedPhone);
+          console.log('✅ Extracted phone directly from Toss User API:', phone ? 'SUCCESS' : 'FAILED');
+        }
+      }
+
+      const realName = decryptTossData(tossUser.name) || '토스유저';
 
       if (selectedRole === 'TENANT' && !inviteCode) {
         // 임시 토큰 발급 (10분 유효) — 추가 정보 입력 후 가입 완료 시 사용
         const tempToken = jwt.sign(
-          { userKey: userKeyStr, name: tossUser.name, selectedRole },
+          { userKey: userKeyStr, name: realName, selectedRole },
           JWT_SECRET,
           { expiresIn: '10m' }
         );
@@ -141,7 +153,7 @@ export const loginWithToss = async (req: Request, res: Response) => {
 
       if (selectedRole === 'LANDLORD' && !phone) {
         const tempToken = jwt.sign(
-          { userKey: userKeyStr, name: tossUser.name, selectedRole },
+          { userKey: userKeyStr, name: realName, selectedRole },
           JWT_SECRET,
           { expiresIn: '10m' }
         );
@@ -178,8 +190,6 @@ export const loginWithToss = async (req: Request, res: Response) => {
           return res.status(400).json({ error: '유효한 전화번호를 입력해 주세요.' });
         }
       }
-
-      const realName = decryptTossData(tossUser.name) || '토스유저';
 
       if (!user) {
         // 완전 신규 유저 생성
@@ -442,31 +452,11 @@ export const handleTossCallback = async (req: Request, res: Response) => {
 
     if (tossError) {
       console.error('Toss Web OAuth Error:', tossError);
-      return res.send(`
-        <script>
-          const target = window.opener || window.parent;
-          if (target && target !== window) {
-            target.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스 로그인 인증에 실패했습니다.' }, '*');
-            if (window.opener) window.close();
-          } else {
-            window.location.href = '/?error=' + encodeURIComponent('토스 로그인 인증에 실패했습니다.');
-          }
-        </script>
-      `);
+      return res.redirect('/?error=' + encodeURIComponent('토스 로그인 인증에 실패했습니다.'));
     }
 
     if (!code) {
-      return res.send(`
-        <script>
-          const target = window.opener || window.parent;
-          if (target && target !== window) {
-            target.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스 인증 코드가 누락되었습니다.' }, '*');
-            if (window.opener) window.close();
-          } else {
-            window.location.href = '/?error=' + encodeURIComponent('토스 인증 코드가 누락되었습니다.');
-          }
-        </script>
-      `);
+      return res.redirect('/?error=' + encodeURIComponent('토스 인증 코드가 누락되었습니다.'));
     }
 
     const selectedRole = typeof state === 'string' ? state : 'TENANT';
@@ -478,7 +468,9 @@ export const handleTossCallback = async (req: Request, res: Response) => {
     // 1. 인가 코드로 엑세스 토큰 발급
     const tokenResponse = await getTossApiClient().post('/api-partner/v1/apps-in-toss/user/oauth2/generate-token', {
       authorizationCode: code as string,
-      referrer: 'DEFAULT'
+      redirectUri: 'https://checkin-host.com/api/toss/callback',
+      referrer: 'WEB',
+      grantType: 'authorization_code'
     });
 
     const accessToken = tokenResponse.data?.success?.accessToken || tokenResponse.data?.accessToken;
@@ -498,17 +490,7 @@ export const handleTossCallback = async (req: Request, res: Response) => {
     const cleanPhone = tossUser.phoneNumber?.replace(/[^0-9]/g, '');
 
     if (!cleanPhone) {
-      return res.send(`
-        <script>
-          const target = window.opener || window.parent;
-          if (target && target !== window) {
-            target.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스에서 전화번호 정보를 가져오지 못했습니다.' }, '*');
-            if (window.opener) window.close();
-          } else {
-            window.location.href = '/?error=' + encodeURIComponent('토스에서 전화번호 정보를 가져오지 못했습니다.');
-          }
-        </script>
-      `);
+      return res.redirect('/?error=' + encodeURIComponent('토스에서 전화번호 정보를 가져오지 못했습니다.'));
     }
 
     // 3. 기존 DB에서 유저 찾기 (전화번호 기준)
@@ -561,17 +543,7 @@ export const handleTossCallback = async (req: Request, res: Response) => {
     if (selectedRole === 'LANDLORD') {
       const isSuperAdmin = user.username === 'wjsdudtns' || (user as any).roles?.includes('ADMIN');
       if (!isSuperAdmin && !user.isSubscribed) {
-        return res.send(`
-          <script>
-            const target = window.opener || window.parent;
-            if (target && target !== window) {
-              target.postMessage({ type: 'TOSS_LOGIN_ERROR', error: 'PC 웹 버전은 프리미엄 구독자 전용입니다. 토스 앱에서 먼저 구독해 주세요.' }, '*');
-              if (window.opener) window.close();
-            } else {
-              window.location.href = '/?error=' + encodeURIComponent('PC 웹 버전은 프리미엄 구독자 전용입니다. 토스 앱에서 먼저 구독해 주세요.');
-            }
-          </script>
-        `);
+        return res.redirect('/?error=' + encodeURIComponent('PC 웹 버전은 프리미엄 구독자 전용입니다. 토스 앱에서 먼저 구독해 주세요.'));
       }
     }
 
@@ -596,32 +568,11 @@ export const handleTossCallback = async (req: Request, res: Response) => {
     });
 
     // 6. 리다이렉트
-    const dest = selectedRole === 'TENANT' ? '/payment' : '/dashboard';
-    return res.send(`
-      <script>
-        const target = window.opener || window.parent;
-        if (target && target !== window) {
-          target.postMessage({ type: 'TOSS_LOGIN_SUCCESS', dest: '${dest}' }, '*');
-          if (window.opener) window.close();
-        } else {
-          window.location.href = '/';
-        }
-      </script>
-    `);
+    return res.redirect('/');
 
   } catch (error: any) {
     console.error('Toss Web Callback Error:', error.response?.data || error.message);
-    return res.send(`
-      <script>
-        const target = window.opener || window.parent;
-        if (target && target !== window) {
-          target.postMessage({ type: 'TOSS_LOGIN_ERROR', error: '토스 로그인 처리 중 서버 오류가 발생했습니다.' }, '*');
-          if (window.opener) window.close();
-        } else {
-          window.location.href = '/?error=' + encodeURIComponent('토스 로그인 처리 중 서버 오류가 발생했습니다.');
-        }
-      </script>
-    `);
+    return res.redirect('/?error=' + encodeURIComponent('토스 로그인 처리 중 서버 오류가 발생했습니다.'));
   }
 };
 

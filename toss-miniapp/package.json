@@ -1,7 +1,7 @@
 {
   "name": "toss-miniapp",
   "private": true,
-  "version": "0.0.43",
+  "version": "0.0.53",
   "type": "module",
   "toss": {
     "deploymentId": "28247"

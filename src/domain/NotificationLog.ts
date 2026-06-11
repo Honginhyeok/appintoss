@@ -1,5 +1,5 @@
 export type DeliveryStatus = 'PENDING' | 'SENT' | 'FAILED';
-export type NotificationChannel = 'KAKAO_ALIMTALK' | 'SMS' | 'UNKNOWN';
+export type NotificationChannel = 'KAKAO_ALIMTALK' | 'SMS' | 'TOSS_PUSH' | 'IN_APP_WEB' | 'UNKNOWN';
 
 export interface NotificationLog {
   id: string;

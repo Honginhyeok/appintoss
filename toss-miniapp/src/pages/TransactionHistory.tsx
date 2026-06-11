@@ -219,7 +219,7 @@ export function TransactionHistory() {
           </select>
         </div>
 
-        <TextField label="금액 (원) *" type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="500000" />
+        <TextField label="금액 (원) *" type="text" inputMode="numeric" value={amount ? Number(amount).toLocaleString() : ''} onChange={e => setAmount(e.target.value.replace(/[^0-9]/g, ''))} placeholder="500,000" />
         <TextField label="날짜" type="date" value={date} onChange={e => setDate(e.target.value)} />
         <TextField label="설명 (메모)" value={description} onChange={e => setDescription(e.target.value)} placeholder="예: 홍길동 월세 수납" />
 

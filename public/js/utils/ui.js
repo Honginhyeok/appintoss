@@ -89,27 +89,36 @@ async function renderProfileModal() {
     `;
   } else {
     // ── 임대인/관리자: 기본 정보 + 비밀번호 변경 폼 ──
+    const isAdmin = currentUser.username === 'admin' || currentUser.username === 'wjsdudtns';
+    let passwordSection = '';
+
+    if (isAdmin) {
+      passwordSection = `
+        <h4 style="margin:0 0 12px;font-size:14px;color:var(--text-muted)">🔒 관리자 계정 설정 (비밀번호 변경)</h4>
+        <form id="change-password-form">
+          <div class="form-group">
+            <label>현재 비밀번호</label>
+            <input type="password" id="cur-password" required>
+          </div>
+          <div class="form-group">
+            <label>새 비밀번호 (4자 이상)</label>
+            <input type="password" id="new-password" required minlength="4">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%">비밀번호 변경</button>
+        </form>
+      `;
+    }
+
     container.innerHTML = `
       <div style="display:flex; align-items:center; gap:14px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--border);">
         <div style="width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg, var(--primary), #2563eb); display:flex; align-items:center; justify-content:center; font-size:22px; color:white;">🏢</div>
         <div>
           <div style="font-size:16px; font-weight:700;">${currentUser.name || currentUser.username}</div>
-          <div style="font-size:13px; color:var(--text-muted);">${currentUser.email || ''} ${currentUser.phone ? '· ' + currentUser.phone : ''}</div>
+          <div style="font-size:13px; color:var(--text-muted);">${isTossOnly ? '토스 간편로그인' : (currentUser.email || '')} ${currentUser.phone ? '· ' + currentUser.phone : ''}</div>
         </div>
       </div>
 
-      <h4 style="margin:0 0 12px;font-size:14px;color:var(--text-muted)">🔒 비밀번호 변경</h4>
-      <form id="change-password-form">
-        <div class="form-group">
-          <label>현재 비밀번호</label>
-          <input type="password" id="cur-password" required>
-        </div>
-        <div class="form-group">
-          <label>새 비밀번호 (4자 이상)</label>
-          <input type="password" id="new-password" required minlength="4">
-        </div>
-        <button type="submit" class="btn btn-primary" style="width:100%">비밀번호 변경</button>
-      </form>
+      ${passwordSection}
 
       <hr style="border:0; border-bottom:1px solid var(--border); margin:24px 0;">
 
@@ -157,6 +166,45 @@ async function renderProfileModal() {
       });
     }
 
+    // 이메일 연동 폼 이벤트 바인딩
+    const linkEmailForm = document.getElementById('link-email-form');
+    if (linkEmailForm) {
+      linkEmailForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const email = document.getElementById('link-email-input').value;
+        const password = document.getElementById('link-password-input').value;
+        
+        if (!email || !password || password.length < 4) return showToast('유효한 이메일과 4자 이상의 비밀번호를 입력하세요.');
+
+        const btn = e.target.querySelector('button[type="submit"]');
+        if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
+
+        const result = await api('/api/auth/link-email', 'PUT', { email, password });
+        
+        if (btn) { btn.disabled = false; btn.textContent = '연동 완료'; }
+        
+        if (result.error) {
+          // 중복 이메일 등의 에러 처리용으로 커스텀 에러 모달 띄우기
+          const errorModal = document.getElementById('error-modal');
+          const errorModalMessage = document.getElementById('error-modal-message');
+          if (errorModal && errorModalMessage) {
+            errorModalMessage.textContent = result.error;
+            errorModal.classList.remove('hidden');
+          } else {
+            alert(result.error);
+          }
+          return;
+        }
+
+        currentUser.email = email;
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        showToast('이메일 연동이 완료되었습니다!');
+        
+        // 새로고침하여 바뀐 화면(일반 계정 폼) 보여주기
+        setTimeout(() => location.reload(), 1000);
+      });
+    }
+
     // 정산 계좌 폼 이벤트 바인딩
     const setForm = document.getElementById('settlement-form');
     if (setForm) {
@@ -180,6 +228,26 @@ async function renderProfileModal() {
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
         
         showToast('정산 계좌가 저장되었습니다.');
+      });
+    }
+
+    // 임차인 초대코드 폼 이벤트 바인딩
+    const tInviteForm = document.getElementById('tenant-invite-form');
+    if (tInviteForm) {
+      tInviteForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        if (btn) btn.disabled = true;
+
+        const inviteCode = document.getElementById('t-invite-code').value.toUpperCase();
+        
+        const result = await api('/api/auth/link-tenant-invite', 'PUT', { inviteCode });
+        if (btn) btn.disabled = false;
+        
+        if (result.error) return alert(result.error);
+        
+        showToast('방 연결이 완료되었습니다!');
+        setTimeout(() => location.reload(), 1000);
       });
     }
   }

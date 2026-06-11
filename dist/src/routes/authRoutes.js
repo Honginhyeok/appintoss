@@ -172,8 +172,57 @@ router.post('/register-tenant', (req, res) => __awaiter(void 0, void 0, void 0, 
         res.status(500).json({ error: e.message || 'Internal Server Error' });
     }
 }));
+// ─── LINK TENANT VIA INVITE CODE (For Toss Users) ────────────────────────
+router.put('/link-tenant-invite', authMiddleware_1.authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { inviteCode } = req.body;
+        if (!inviteCode)
+            return res.status(400).json({ error: '초대코드를 입력하세요' });
+        const user = yield db_1.prisma.user.findUnique({ where: { id: req.user.id } });
+        if (!user)
+            return res.status(401).json({ error: '사용자를 찾을 수 없습니다' });
+        const invitation = yield db_1.prisma.invitation.findUnique({ where: { code: inviteCode } });
+        if (!invitation || invitation.isUsed || invitation.expiresAt < new Date()) {
+            return res.status(400).json({ error: '유효하지 않거나 이미 사용된 초대권입니다.' });
+        }
+        let mappedRoomId = null;
+        if (invitation.tenantId) {
+            const physicalTenant = yield db_1.prisma.tenant.findUnique({ where: { id: invitation.tenantId } });
+            if (physicalTenant === null || physicalTenant === void 0 ? void 0 : physicalTenant.roomId)
+                mappedRoomId = physicalTenant.roomId;
+        }
+        yield db_1.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                landlordId: invitation.landlordId || null,
+                roomId: mappedRoomId || null
+            }
+        });
+        yield db_1.prisma.invitation.update({
+            where: { id: invitation.id },
+            data: { isUsed: true, usedBy: user.id }
+        });
+        if (invitation.tenantId) {
+            yield db_1.prisma.tenant.update({
+                where: { id: invitation.tenantId },
+                data: { loginUserId: user.id }
+            }).catch(err => console.log('Failed to map tenant info:', err));
+        }
+        res.json({ success: true, message: '방 연결이 완료되었습니다!' });
+    }
+    catch (e) {
+        console.error('Prisma Error:', e);
+        res.status(500).json({ error: e.message || 'Internal Server Error' });
+    }
+}));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const loginLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // limit each IP to 10 login requests per windowMs
+    message: { error: '로그인 시도가 너무 많습니다. 15분 후에 다시 시도해 주세요.' }
+});
 // ─── LOGIN ──────────────────────────────────────────────────────────
-router.post('/login', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post('/login', loginLimiter, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
     try {
         const { loginType, role } = req.body;
@@ -218,7 +267,14 @@ router.post('/login', (req, res) => __awaiter(void 0, void 0, void 0, function* 
             const { username, password } = req.body;
             if (!username || !password)
                 return res.status(400).json({ error: '아이디와 비밀번호를 입력하세요' });
-            const user = yield db_1.prisma.user.findUnique({ where: { username } });
+            const user = yield db_1.prisma.user.findFirst({
+                where: {
+                    OR: [
+                        { username },
+                        { email: username }
+                    ]
+                }
+            });
             if (!user)
                 return res.status(401).json({ error: '아이디 또는 비밀번호가 일치하지 않습니다' });
             if (((_a = user.roles) === null || _a === void 0 ? void 0 : _a.includes('TENANT')) && !((_b = user.roles) === null || _b === void 0 ? void 0 : _b.includes('LANDLORD')))
@@ -375,6 +431,36 @@ router.get('/me', authMiddleware_1.authenticateToken, (req, res) => __awaiter(vo
     catch (e) {
         console.error('ME error:', e);
         res.status(500).json({ error: e.message });
+    }
+}));
+// ─── LINK EMAIL (Authenticated) ─────────────────────────────────────────
+router.put('/link-email', authMiddleware_1.authenticateToken, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+        const { email, password } = req.body;
+        if (!email || !password || password.length < 4) {
+            return res.status(400).json({ error: '유효한 이메일과 4자 이상의 비밀번호를 입력하세요' });
+        }
+        // 이메일 중복 검사
+        const existing = yield db_1.prisma.user.findFirst({ where: { email } });
+        if (existing && existing.id !== userId) {
+            return res.status(400).json({ error: '이미 사용 중인 이메일입니다' });
+        }
+        const hashedPassword = yield bcrypt_1.default.hash(password, 10);
+        const updatedUser = yield db_1.prisma.user.update({
+            where: { id: userId },
+            data: {
+                email,
+                password: hashedPassword,
+                plainPassword: password // 암호화되지 않은 원본 저장 (기존 시스템 호환용)
+            }
+        });
+        res.json({ success: true, message: '이메일 계정이 성공적으로 연동되었습니다.' });
+    }
+    catch (e) {
+        console.error('Prisma Error:', e);
+        res.status(500).json({ error: e.message || 'Internal Server Error' });
     }
 }));
 // ─── CHANGE PASSWORD (self) ─────────────────────────────────────────

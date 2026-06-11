@@ -1,9 +1,19 @@
 import { Router } from 'express';
 import { prisma } from '../config/db';
 import { authenticateToken, AuthenticatedRequest } from '../middlewares/authMiddleware';
+import { NotificationService } from '../services/NotificationService';
+import { KakaoAlimTalkProvider } from '../providers/KakaoAlimTalkProvider';
+import { SMSProvider } from '../providers/SMSProvider';
+import { PrismaLogger } from '../services/PrismaLogger';
+import { NotificationUseCase } from '../domain/NotificationTemplate';
 
 const router = Router();
 router.use(authenticateToken);
+
+const kakao = new KakaoAlimTalkProvider();
+const sms = new SMSProvider();
+const logger = new PrismaLogger();
+const notificationService = new NotificationService(kakao, sms, logger);
 
 // GET /api/in-app-notifications — 자신의 알림 조회
 router.get('/', async (req: AuthenticatedRequest, res) => {
@@ -44,16 +54,48 @@ router.post('/', async (req: AuthenticatedRequest, res) => {
       return res.status(400).json({ error: '필수 값이 부족합니다.' });
     }
 
-    const newNotif = await prisma.notification.create({
-      data: {
-        userId: targetUserId,
-        title,
-        message,
-        link
-      }
+    // 1. 해당 유저에 대응되는 물리적인 Tenant 레코드 조회
+    const tenant = await prisma.tenant.findUnique({
+      where: { loginUserId: targetUserId },
+      include: { room: true }
     });
 
-    res.json({ success: true, notification: newNotif });
+    if (!tenant) {
+      // 대응되는 Tenant가 없으면 직접 웹 알림만 생성 (구형 세입자 또는 비매핑 계정)
+      const newNotif = await prisma.notification.create({
+        data: {
+          userId: targetUserId,
+          title,
+          message,
+          link
+        }
+      });
+      return res.json({ success: true, notification: newNotif });
+    }
+
+    // 2. 통합 알림 서비스(NotificationService)를 호출하여 발송 진행
+    // RENT_DUE(월세 청구서) 템플릿에 맞추어 변수 데이터 생성
+    const isPaymentUseCase = title?.includes('청구서') || message?.includes('월세');
+    const useCase = isPaymentUseCase ? NotificationUseCase.RENT_DUE : NotificationUseCase.RENT_DUE;
+
+    const data = {
+      tenantName: tenant.name,
+      roomName: tenant.room?.name || '미배정',
+      amount: tenant.rentAmount ? tenant.rentAmount.toLocaleString('ko-KR') : '0',
+      dueDate: tenant.rentPaymentDay ? `매월 ${tenant.rentPaymentDay}일` : '-',
+      endDate: tenant.moveOutDate ? new Date(tenant.moveOutDate).toLocaleDateString() : '-',
+      requestDetails: message
+    };
+
+    const success = await notificationService.sendNotification({
+      to: tenant.phone || '',
+      tenantId: tenant.id,
+      useCase,
+      data,
+      isManual: true
+    });
+
+    res.json({ success, message: '알림이 성공적으로 처리되었습니다.' });
   } catch (e: any) {
     console.error('In-App notification send error:', e);
     res.status(500).json({ error: e.message });

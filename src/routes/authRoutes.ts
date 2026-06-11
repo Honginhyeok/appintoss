@@ -169,8 +169,63 @@ router.post('/register-tenant', async (req, res) => {
   }
 });
 
+// ─── LINK TENANT VIA INVITE CODE (For Toss Users) ────────────────────────
+router.put('/link-tenant-invite', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { inviteCode } = req.body;
+    if (!inviteCode) return res.status(400).json({ error: '초대코드를 입력하세요' });
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(401).json({ error: '사용자를 찾을 수 없습니다' });
+
+    const invitation = await prisma.invitation.findUnique({ where: { code: inviteCode } });
+    if (!invitation || invitation.isUsed || invitation.expiresAt < new Date()) {
+      return res.status(400).json({ error: '유효하지 않거나 이미 사용된 초대권입니다.' });
+    }
+
+    let mappedRoomId: string | null = null;
+    if (invitation.tenantId) {
+      const physicalTenant = await prisma.tenant.findUnique({ where: { id: invitation.tenantId } });
+      if (physicalTenant?.roomId) mappedRoomId = physicalTenant.roomId;
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        landlordId: invitation.landlordId || null,
+        roomId: mappedRoomId || null
+      }
+    });
+
+    await prisma.invitation.update({
+      where: { id: invitation.id },
+      data: { isUsed: true, usedBy: user.id }
+    });
+
+    if (invitation.tenantId) {
+      await prisma.tenant.update({
+        where: { id: invitation.tenantId },
+        data: { loginUserId: user.id }
+      }).catch(err => console.log('Failed to map tenant info:', err));
+    }
+
+    res.json({ success: true, message: '방 연결이 완료되었습니다!' });
+  } catch (e: any) {
+    console.error('Prisma Error:', e);
+    res.status(500).json({ error: e.message || 'Internal Server Error' }); 
+  }
+});
+
+import rateLimit from 'express-rate-limit';
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // limit each IP to 10 login requests per windowMs
+  message: { error: '로그인 시도가 너무 많습니다. 15분 후에 다시 시도해 주세요.' }
+});
+
 // ─── LOGIN ──────────────────────────────────────────────────────────
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { loginType, role } = req.body;
     const reqRole = role || (loginType === 'tenant' ? 'TENANT' : 'LANDLORD');
@@ -213,33 +268,90 @@ router.post('/login', async (req, res) => {
       res.cookie('token', token, { httpOnly: true, secure: NODE_ENV === 'production', sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
       return res.json({ success: true, token, user: { id: user.id, username: user.username, roles: (user as any).roles, currentRole: 'TENANT', status: user.status } });
 
-    } else if (reqRole === 'LANDLORD') {
+    } else if (reqRole === 'LANDLORD' || reqRole === 'ADMIN') {
       const { username, password } = req.body;
       
-      if (!username || !password) return res.status(400).json({ error: '아이디와 비밀번호를 입력하세요' });
+      if (!username || !password) return res.status(400).json({ error: '아이디와 4자리 비밀번호를 입력하세요' });
 
-      const user = await prisma.user.findUnique({ where: { username } });
-      if (!user) return res.status(401).json({ error: '아이디 또는 비밀번호가 일치하지 않습니다' });
-      if ((user as any).roles?.includes('TENANT') && !(user as any).roles?.includes('LANDLORD')) return res.status(403).json({ error: '임대인 로그인 폼을 이용해 주세요' });
+      // 전화번호 정제 (숫자만 추출 및 하이픈 추가)
+      const cleanPhone = username.replace(/[^0-9]/g, '');
+      const hyphenPhone = cleanPhone.length === 11 
+        ? cleanPhone.slice(0,3) + '-' + cleanPhone.slice(3,7) + '-' + cleanPhone.slice(7)
+        : cleanPhone;
 
-      // LANDLORD는 비밀번호 필수 검증
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { username },
+            { email: username },
+            { phone: cleanPhone },
+            { phone: hyphenPhone }
+          ]
+        }
+      });
+      
+      if (!user) return res.status(401).json({ error: '등록되지 않은 계정이거나 비밀번호가 일치하지 않습니다.' });
+      
+      if (reqRole === 'ADMIN' && user.username !== 'wjsdudtns' && !(user as any).roles?.includes('ADMIN')) {
+        return res.status(403).json({ error: '관리자 권한이 없습니다.' });
+      }
+
+      if (reqRole === 'LANDLORD' && (user as any).roles?.includes('TENANT') && !(user as any).roles?.includes('LANDLORD')) {
+        return res.status(403).json({ error: '임대인 로그인 폼을 이용해 주세요' });
+      }
+
+      // 차단 여부 확인
+      if ((user as any).lockoutUntil && new Date() < new Date((user as any).lockoutUntil)) {
+        const minutesLeft = Math.ceil((new Date((user as any).lockoutUntil).getTime() - new Date().getTime()) / 60000);
+        return res.status(403).json({ error: `비밀번호 5회 오류로 접속이 차단되었습니다. ${minutesLeft}분 후 다시 시도해주세요.` });
+      }
+
+      // 비밀번호 필수 검증
       const valid = await bcrypt.compare(password, user.password);
-      if (!valid) return res.status(401).json({ error: '아이디 또는 비밀번호가 일치하지 않습니다' });
+      if (!valid) {
+        // 실패 횟수 증가 로직
+        const newAttempts = ((user as any).failedLoginAttempts || 0) + 1;
+        let updateData: any = { failedLoginAttempts: newAttempts };
+        
+        if (newAttempts >= 5) {
+          // 10분 차단
+          updateData.lockoutUntil = new Date(Date.now() + 10 * 60 * 1000);
+        }
+        
+        await prisma.user.update({
+          where: { id: user.id },
+          data: updateData
+        });
+        
+        if (newAttempts >= 5) {
+          return res.status(403).json({ error: '비밀번호 5회 오류로 인해 10분간 접속이 차단됩니다.' });
+        } else {
+          return res.status(401).json({ error: `비밀번호가 일치하지 않습니다. (실패: ${newAttempts}/5)` });
+        }
+      }
+
+      // 성공 시 초기화
+      if ((user as any).failedLoginAttempts > 0 || (user as any).lockoutUntil) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { failedLoginAttempts: 0, lockoutUntil: null }
+        });
+      }
 
       if (user.status === 'PENDING') return res.status(403).json({ error: '관리자 승인 대기 중입니다' });
       if (user.status === 'SUSPENDED') return res.status(403).json({ error: '계정이 정지되었습니다' });
 
-      // PC 웹 버전 (inToss === false) 인 경우 구독 여부 검사
-      if (req.body.inToss === false) {
+      // PC 웹 버전 (inToss !== true) 인 경우 구독 여부 검사 (ADMIN은 면제)
+      if (req.body.inToss !== true && reqRole !== 'ADMIN') {
         const isSuperAdmin = user.username === 'wjsdudtns' || (user as any).roles?.includes('ADMIN');
         if (!isSuperAdmin && !user.isSubscribed) {
           return res.status(403).json({ error: 'PC 웹 버전은 프리미엄 구독자 전용입니다. 토스 앱에서 먼저 구독해 주세요.' });
         }
       }
 
-      const token = jwt.sign({ id: user.id, username: user.username, roles: (user as any).roles, currentRole: 'LANDLORD', status: user.status }, JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ id: user.id, username: user.username, roles: (user as any).roles, currentRole: reqRole, status: user.status }, JWT_SECRET, { expiresIn: '7d' });
       res.cookie('token', token, { httpOnly: true, secure: NODE_ENV === 'production', sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
-      return res.json({ success: true, token, user: { id: user.id, username: user.username, roles: (user as any).roles, currentRole: 'LANDLORD', status: user.status } });
+      return res.json({ success: true, token, user: { id: user.id, username: user.username, roles: (user as any).roles, currentRole: reqRole, status: user.status } });
 
     } else {
       return res.status(400).json({ error: '유효하지 않은 역할(Role)입니다' });
@@ -396,6 +508,40 @@ router.get('/me', authenticateToken, async (req: AuthenticatedRequest, res) => {
   } catch (e: any) {
     console.error('ME error:', e);
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── LINK EMAIL (Authenticated) ─────────────────────────────────────────
+router.put('/link-email', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    const { email, password } = req.body;
+
+    if (!email || !password || password.length < 4) {
+      return res.status(400).json({ error: '유효한 이메일과 4자 이상의 비밀번호를 입력하세요' });
+    }
+
+    // 이메일 중복 검사
+    const existing = await prisma.user.findFirst({ where: { email } });
+    if (existing && existing.id !== userId) {
+      return res.status(400).json({ error: '이미 사용 중인 이메일입니다' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        email,
+        password: hashedPassword,
+        plainPassword: password // 암호화되지 않은 원본 저장 (기존 시스템 호환용)
+      }
+    });
+
+    res.json({ success: true, message: '이메일 계정이 성공적으로 연동되었습니다.' });
+  } catch (e: any) {
+    console.error('Prisma Error:', e);
+    res.status(500).json({ error: e.message || 'Internal Server Error' });
   }
 });
 

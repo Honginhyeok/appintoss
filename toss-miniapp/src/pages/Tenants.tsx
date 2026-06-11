@@ -265,13 +265,13 @@ export function Tenants() {
             </div>
           </div>
 
-          <TextField label="임대료 (원)" type="number" value={rentAmount} onChange={e => setRentAmount(e.target.value)} placeholder="500000" />
+          <TextField label="임대료 (원)" type="text" inputMode="numeric" value={rentAmount ? Number(rentAmount).toLocaleString() : ''} onChange={e => setRentAmount(e.target.value.replace(/[^0-9]/g, ''))} placeholder="500,000" />
 
           {rentType === 'MONTHLY' && (
             <TextField label="납부일 (매월 N일)" type="number" value={rentPaymentDay} onChange={e => setRentPaymentDay(e.target.value)} placeholder="15" />
           )}
 
-          <TextField label="보증금 (원)" type="number" value={deposit} onChange={e => setDeposit(e.target.value)} placeholder="3000000" />
+          <TextField label="보증금 (원)" type="text" inputMode="numeric" value={deposit ? Number(deposit).toLocaleString() : ''} onChange={e => setDeposit(e.target.value.replace(/[^0-9]/g, ''))} placeholder="3,000,000" />
           <TextField label="입주일" type="date" value={moveInDate} onChange={e => setMoveInDate(e.target.value)} />
 
           <div style={{ marginTop: '8px' }}>

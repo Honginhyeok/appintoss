@@ -62,19 +62,21 @@ export function Rooms() {
   };
 
   return (
-    <div style={{ padding: '24px', backgroundColor: '#f9f9f9', minHeight: '100vh' }}>
-      <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>내 방 관리</h2>
-      <p style={{ color: '#4e5968', marginBottom: '24px' }}>관리하고 계신 방의 목록입니다.</p>
+    <div style={{ padding: '24px', backgroundColor: '#f9f9f9', minHeight: '100vh', color: '#191f28' }}>
+      <div style={{ textAlign: 'center', marginBottom: '32px', paddingTop: '16px' }}>
+        <h2 style={{ fontSize: '28px', fontWeight: '800', marginBottom: '12px', color: '#191f28' }}>내 방 관리</h2>
+        <p style={{ color: '#4e5968', fontSize: '15px' }}>관리하고 계신 방의 목록입니다.</p>
+      </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '32px' }}>
         <input 
           type="text" 
           value={newRoomName} 
           onChange={(e) => setNewRoomName(e.target.value)} 
           placeholder="예: 101호"
-          style={{ flex: 1, padding: '16px', borderRadius: '12px', border: '1px solid #e5e8eb', fontSize: '16px', outline: 'none' }}
+          style={{ flex: 1, padding: '16px 20px', borderRadius: '16px', border: '1px solid #e5e8eb', fontSize: '16px', outline: 'none', backgroundColor: '#ffffff', color: '#191f28', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
         />
-        <Button variant="primary" style={{ width: 'auto', padding: '0 24px' }} onClick={handleAddRoom}>방 추가</Button>
+        <Button variant="primary" style={{ width: 'auto', padding: '0 28px', borderRadius: '16px', fontSize: '16px', fontWeight: '700' }} onClick={handleAddRoom}>방 추가</Button>
       </div>
 
       {loading ? (

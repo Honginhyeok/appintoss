@@ -31,6 +31,8 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
+    "@google/genai": "^2.6.0",
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.10.2",
     "@toss/tds-react-native": "^2.0.3",
     "axios": "^1.15.2",
@@ -38,6 +40,8 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.5",
     "web-push": "^3.6.7"

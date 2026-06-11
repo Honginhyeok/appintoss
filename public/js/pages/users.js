@@ -34,9 +34,18 @@ function renderUsersTable() {
   });
 
   tbody.innerHTML = filtered.map(u => {
-    const statusBadge = u.status === 'ACTIVE' ? '<span class="badge badge-income">활성</span>'
+      const statusBadge = u.status === 'ACTIVE' ? '<span class="badge badge-income">활성</span>'
         : u.status === 'PENDING' ? '<span class="badge badge-warning" style="background:#fef3c7;color:#92400e">대기</span>'
         : '<span class="badge badge-expense">정지</span>';
+
+      const subBadge = u.isSubscribed ? '<span class="badge badge-income" style="background:#e0f2fe;color:#0284c7">👑결제됨</span>'
+        : '<span class="badge badge-expense" style="background:#f1f5f9;color:#64748b">미결제</span>';
+
+      const subBtn = u.role !== 'TENANT' && u.username !== 'admin' ? (
+        u.isSubscribed
+          ? '<button class="btn btn-ghost" style="padding:2px 10px;font-size:11px;border:1px solid var(--border)" onclick="toggleSubscription(\'' + u.id + '\', false)">👑결제해제</button>'
+          : '<button class="btn btn-primary" style="padding:2px 10px;font-size:11px" onclick="toggleSubscription(\'' + u.id + '\', true)">👑결제승인</button>'
+      ) : '';
 
       const statusBtn = u.username === 'admin' ? '' : (
         u.status === 'PENDING'
@@ -73,15 +82,26 @@ function renderUsersTable() {
         + '<td style="font-weight:600">' + u.username + '</td>'
         + '<td>' + assignDisplay + '</td>'
         + '<td>' + roleSelect + '</td>'
+        + '<td>' + subBadge + '</td>'
         + '<td>' + statusBadge + '</td>'
         + '<td>' + passwordDisplay + '</td>'
         + '<td>' + fmtDate(u.createdAt) + '</td>'
-        + '<td><div style="display:flex;gap:6px;align-items:center">'
+        + '<td><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+        + subBtn
         + statusBtn
         + '<button class="btn btn-ghost" style="padding:2px 10px;font-size:11px;border:1px solid var(--border)" onclick="openPasswordResetModal(\'' + u.id + '\', \'' + u.username + '\')">🔑 재설정</button>'
         + (u.username !== 'admin' ? '<button class="btn-icon danger" onclick="deleteUser(\'' + u.id + '\', \'' + u.username + '\')" title="삭제">🗑️</button>' : '')
         + '</div></td></tr>';
-    }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px">사용자가 없습니다</td></tr>';
+    }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">사용자가 없습니다</td></tr>';
+}
+
+async function toggleSubscription(id, isSubscribed) {
+  const label = isSubscribed ? '프리미엄 결제로 승인' : '프리미엄 결제 해제';
+  if (!confirm('이 사용자를 ' + label + '하시겠습니까?')) return;
+  const result = await api('/api/users/' + id + '/subscription', 'PUT', { isSubscribed });
+  if (result.error) return alert(result.error);
+  showToast('사용자 결제 상태가 변경되었습니다.');
+  await loadUsers();
 }
 
 async function changeUserStatus(id, status) {

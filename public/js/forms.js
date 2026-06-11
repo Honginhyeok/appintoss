@@ -206,14 +206,18 @@ function initForms() {
     await loadLogs();
   });
 
-  // ── Landlord Login Form ──
+  // ── Landlord Login Form (Phone + PIN) ──
   safeBindForm('landlord-login-form', async e => {
     e.preventDefault();
-    const username = document.getElementById('landlord-login-id').value;
+    const phoneRaw = document.getElementById('landlord-login-id').value;
+    const username = phoneRaw.replace(/[^0-9]/g, ''); // 하이픈 제거, 순수 숫자열
     const password = document.getElementById('landlord-login-pw').value;
+    
+    if (!username || !password) return alert('휴대폰 번호와 비밀번호를 모두 입력하세요');
+
     const result = await api('/api/auth/login', 'POST', { username, password, loginType: 'landlord' });
     if (result.success) {
-      showToast('로그인 성공!');
+      if (typeof showToast === 'function') showToast('로그인 성공!');
       await checkAuth();
     } else {
       alert(result.error || '로그인 실패');

@@ -171,47 +171,8 @@ function startTossOAuthLogin() {
   const roleState = (selectedRole || 'tenant').toUpperCase();
   const tossAuthUrl = `https://oauth2.cert.toss.im/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${roleState}`;
   
-  let modal = document.getElementById('toss-oauth-modal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'toss-oauth-modal';
-    modal.style.position = 'fixed';
-    modal.style.top = '0';
-    modal.style.left = '0';
-    modal.style.width = '100vw';
-    modal.style.height = '100vh';
-    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-    modal.style.zIndex = '999999';
-    modal.style.display = 'flex';
-    modal.style.alignItems = 'center';
-    modal.style.justifyContent = 'center';
-    
-    modal.innerHTML = `
-      <div style="position:relative; width:100%; max-width:400px; height:600px; max-height:90vh; background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
-        <button onclick="document.getElementById('toss-oauth-modal').style.display='none'" style="position:absolute; top:12px; right:12px; width:30px; height:30px; border:none; background:#f1f5f9; border-radius:50%; font-size:16px; cursor:pointer; color:#334155; font-weight:bold; z-index:10;">✕</button>
-        <iframe id="toss-oauth-iframe" src="" style="width:100%; height:100%; border:none; margin-top:0px;"></iframe>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  }
-  
-  document.getElementById('toss-oauth-iframe').src = tossAuthUrl;
-  modal.style.display = 'flex';
-
-  window.addEventListener('message', function authListener(e) {
-    if (e.data && e.data.type === 'TOSS_LOGIN_SUCCESS') {
-      window.removeEventListener('message', authListener);
-      document.getElementById('toss-oauth-modal').style.display = 'none';
-      window.location.reload();
-    } else if (e.data && e.data.type === 'TOSS_LOGIN_ERROR') {
-      window.removeEventListener('message', authListener);
-      document.getElementById('toss-oauth-modal').style.display = 'none';
-      const errMsg = e.data.error;
-      const modalMsgEl = document.getElementById('error-modal-message');
-      if (modalMsgEl) modalMsgEl.textContent = errMsg;
-      if (typeof openModal === 'function') openModal('error-modal');
-    }
-  });
+  // Directly redirect the current window to Toss OAuth
+  window.location.href = tossAuthUrl;
 }
 
 // ─── 세션/토큰 체크 (방어 코드 포함) ─────────────────────────────
@@ -230,9 +191,13 @@ async function checkAuth() {
       const errMsg = urlParams.get('error');
       const displayMsg = errMsg === 'TossLoginFailed' ? '토스 로그인에 실패했습니다.' : errMsg;
       
-      const modalMsgEl = document.getElementById('error-modal-message');
-      if (modalMsgEl) modalMsgEl.textContent = displayMsg;
-      if (typeof openModal === 'function') openModal('error-modal');
+      let modalMsgEl = document.getElementById('error-modal-message');
+      if (modalMsgEl) {
+        modalMsgEl.textContent = displayMsg;
+        if (typeof openModal === 'function') openModal('error-modal');
+      } else {
+        alert(displayMsg);
+      }
       
       window.history.replaceState({}, document.title, window.location.pathname);
     }

@@ -13,8 +13,8 @@ function formatPhone(value: string): string {
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
 }
 
-type Step = 'role' | 'landlord-login' | 'tenant-login' | 'toss-register';
-type SelectedRole = 'TENANT' | 'LANDLORD' | null;
+type Step = 'role' | 'landlord-login' | 'tenant-login' | 'toss-register' | 'admin-login';
+type SelectedRole = 'TENANT' | 'LANDLORD' | 'ADMIN' | null;
 
 export function Login() {
   const { login, isLoggedIn, user, refreshUser } = useAuth();
@@ -48,6 +48,15 @@ export function Login() {
     setLoading(true);
     setError('');
     const result = await login({ role: 'LANDLORD', username, password, inToss });
+    if (!result.success) setError(result.error || '로그인 실패');
+    setLoading(false);
+  };
+
+  const handleAdminLogin = async () => {
+    if (!username || !password) { setError('관리자 아이디와 비밀번호를 입력하세요'); return; }
+    setLoading(true);
+    setError('');
+    const result = await login({ role: 'ADMIN', username, password, inToss });
     if (!result.success) setError(result.error || '로그인 실패');
     setLoading(false);
   };
@@ -178,8 +187,8 @@ export function Login() {
         {/* ─── 역할 선택 (1안: 역할 먼저 선택 → 토스 로그인) ─── */}
         {step === 'role' && (
           <div>
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-              <div style={{ fontSize: '56px', marginBottom: '12px' }}>🏠</div>
+            <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+              <div style={{ fontSize: '64px', marginBottom: '16px', lineHeight: 1 }}>🏠</div>
               <h1 style={{ fontSize: '26px', fontWeight: '700', color: '#191f28', margin: 0 }}>체크인사장님</h1>
               <p style={{ fontSize: '14px', color: '#8b95a1', marginTop: '8px' }}>스마트 숙소 관리 솔루션</p>
             </div>
@@ -267,6 +276,19 @@ export function Login() {
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               </div>
             )}
+
+            <div style={{ textAlign: 'center', marginTop: '40px' }}>
+              <button
+                onClick={() => {
+                  setSelectedRole('ADMIN');
+                  setStep('admin-login');
+                  setError('');
+                }}
+                style={{ background: 'none', border: 'none', fontSize: '13px', color: '#b0b8c1', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                시스템 관리자 로그인
+              </button>
+            </div>
           </div>
         )}
 
@@ -336,6 +358,57 @@ export function Login() {
           </div>
         )}
 
+        {/* ─── 시스템 관리자 로그인 ─── */}
+        {step === 'admin-login' && (
+          <div>
+            <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+              <div style={{ fontSize: '44px', marginBottom: '10px' }}>⚙️</div>
+              <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#191f28', margin: 0 }}>시스템 관리자 로그인</h2>
+              <p style={{ fontSize: '13px', color: '#8b95a1', marginTop: '6px' }}>관리자 아이디와 비밀번호를 입력하세요</p>
+            </div>
+
+            {error && (
+              <div style={{ background: '#ffeeee', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', fontSize: '14px', color: '#e42939', fontWeight: '500' }}>
+                {error}
+              </div>
+            )}
+
+            <TextField
+              label="관리자 아이디"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="admin"
+              autoComplete="username"
+            />
+
+            <TextField
+              label="비밀번호"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="비밀번호를 입력하세요"
+              autoComplete="current-password"
+              onKeyDown={(e) => e.key === 'Enter' && handleAdminLogin()}
+            />
+
+            <div style={{ marginTop: '8px' }}>
+              <Button variant="primary" onClick={handleAdminLogin} disabled={loading} style={{ background: '#191f28' }}>
+                {loading ? '로그인 중...' : '관리자 로그인'}
+              </Button>
+            </div>
+
+            <div style={{ textAlign: 'center', marginTop: '24px' }}>
+              <button
+                onClick={() => { setStep('role'); setError(''); }}
+                style={{ background: 'none', border: 'none', fontSize: '14px', color: '#8b95a1', cursor: 'pointer' }}
+              >
+                ← 뒤로가기
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ─── 임차인 로그인 (비-토스 환경 폴백) ─── */}
         {step === 'tenant-login' && (
           <div>
@@ -398,7 +471,7 @@ export function Login() {
         {step === 'toss-register' && (
           <div>
             <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-              <div style={{ fontSize: '48px', marginBottom: '12px' }}>{_selectedRole === 'TENANT' ? '🏠' : '👑'}</div>
+              <div style={{ fontSize: '64px', marginBottom: '24px', lineHeight: 1 }}>{_selectedRole === 'TENANT' ? '🏠' : '👑'}</div>
               <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#191f28', margin: '0 0 8px' }}>
                 {_selectedRole === 'TENANT' ? '임차인(세입자) 가입' : '임대인(집주인) 가입'}
               </h2>

@@ -402,55 +402,100 @@ const completeTossRegistration = (req, res) => __awaiter(void 0, void 0, void 0,
 });
 exports.completeTossRegistration = completeTossRegistration;
 const handleTossCallback = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e;
     try {
         const { code, state, error: tossError } = req.query;
         if (tossError) {
             console.error('Toss Web OAuth Error:', tossError);
-            return res.redirect('/login?error=' + encodeURIComponent('토스 로그인 인증에 실패했습니다.'));
+            return res.redirect('/?error=' + encodeURIComponent('토스 로그인 인증에 실패했습니다.'));
         }
         if (!code) {
-            return res.redirect('/login?error=' + encodeURIComponent('토스 인증 코드가 누락되었습니다.'));
+            return res.redirect('/?error=' + encodeURIComponent('토스 인증 코드가 누락되었습니다.'));
         }
         const selectedRole = typeof state === 'string' ? state : 'TENANT';
-        if (!httpsAgent) {
-            return res.status(500).json({ error: 'Server misconfiguration: Toss mTLS Agent is not ready.' });
+        const { TOSS_CLIENT_ID, TOSS_SECRET_KEY } = process.env;
+        if (!TOSS_CLIENT_ID || !TOSS_SECRET_KEY) {
+            throw new Error('Toss OAuth credentials not configured on server.');
         }
-        // 1. 인가 코드로 엑세스 토큰 발급
-        const tokenResponse = yield getTossApiClient().post('/api-partner/v1/apps-in-toss/user/oauth2/generate-token', {
-            authorizationCode: code,
-            referrer: 'DEFAULT'
-        });
-        const accessToken = ((_b = (_a = tokenResponse.data) === null || _a === void 0 ? void 0 : _a.success) === null || _b === void 0 ? void 0 : _b.accessToken) || ((_c = tokenResponse.data) === null || _c === void 0 ? void 0 : _c.accessToken);
+        const redirectUri = 'https://checkin-host.com/api/toss/callback';
+        // 1. 인가 코드로 엑세스 토큰 발급 (Web OAuth 전용 API 사용)
+        const tokenResponse = yield axios_1.default.post('https://oauth2.cert.toss.im/token', new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: TOSS_CLIENT_ID,
+            client_secret: TOSS_SECRET_KEY,
+            code: String(code),
+            redirect_uri: redirectUri
+        }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+        const accessToken = ((_a = tokenResponse.data) === null || _a === void 0 ? void 0 : _a.access_token) || ((_b = tokenResponse.data) === null || _b === void 0 ? void 0 : _b.accessToken);
         if (!accessToken) {
             throw new Error(`Failed to retrieve access token from Toss. Response: ${JSON.stringify(tokenResponse.data)}`);
         }
-        // 2. 엑세스 토큰으로 유저 정보 조회
-        const userResponse = yield getTossApiClient().get('/api-partner/v1/apps-in-toss/user/me', {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`
-            }
+        // 2. 엑세스 토큰으로 유저 정보 조회 (앱인토스 API 공용 활용)
+        const userResponse = yield getTossApiClient().get('/api-partner/v1/apps-in-toss/user/oauth2/login-me', {
+            headers: { Authorization: `Bearer ${accessToken}` }
         });
-        const tossUser = ((_d = userResponse.data) === null || _d === void 0 ? void 0 : _d.success) || userResponse.data;
-        const cleanPhone = (_e = tossUser.phoneNumber) === null || _e === void 0 ? void 0 : _e.replace(/[^0-9]/g, '');
-        if (!cleanPhone) {
-            return res.redirect('/login?error=' + encodeURIComponent('토스에서 전화번호 정보를 가져오지 못했습니다.'));
-        }
-        // 3. 기존 DB에서 유저 찾기 (전화번호 기준)
-        const targetUsername = 'toss_' + cleanPhone;
-        let user = yield db_1.prisma.user.findFirst({
-            where: {
-                OR: [
-                    { username: targetUsername },
-                    { phone: cleanPhone }
-                ]
+        const tossUser = ((_c = userResponse.data) === null || _c === void 0 ? void 0 : _c.success) || userResponse.data;
+        const phone = tossUser.phoneNumber || tossUser.phone || '';
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        let userKey = tossUser.userKey || tossUser.user_key;
+        if (!userKey) {
+            try {
+                const payload = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64').toString());
+                userKey = payload.sub;
             }
+            catch (e) {
+                console.error('Failed to decode JWT:', e);
+            }
+        }
+        const userKeyStr = String(userKey);
+        if (!userKeyStr || userKeyStr === 'undefined') {
+            return res.redirect('/?error=' + encodeURIComponent('토스에서 유저 식별 정보를 가져오지 못했습니다.'));
+        }
+        // --- [ADD] 기존 로그인 세션이 있을 경우 계정 연동(Link) 처리 ---
+        let existingUserSession = null;
+        const tokenCookie = req.cookies.token;
+        if (tokenCookie) {
+            try {
+                existingUserSession = jsonwebtoken_1.default.verify(tokenCookie, env_1.JWT_SECRET);
+                console.log('Toss Link - Existing User Session detected:', existingUserSession.username);
+            }
+            catch (err) {
+                console.log('Toss Link - Invalid token in cookie, skipping account linking.');
+            }
+        }
+        if (existingUserSession) {
+            // 1. 이미 해당 전화번호로 연동된 다른 계정이 존재하는지 검사
+            const anotherUser = yield db_1.prisma.user.findFirst({
+                where: {
+                    phone: cleanPhone,
+                    id: { not: existingUserSession.id }
+                }
+            });
+            if (anotherUser) {
+                return res.redirect('/?error=' + encodeURIComponent('해당 토스 계정은 이미 다른 회원과 연동되어 있습니다.'));
+            }
+            // 2. 기존 사용자 계정 정보 업데이트
+            yield db_1.prisma.user.update({
+                where: { id: existingUserSession.id },
+                data: Object.assign({ username: 'toss_' + userKeyStr }, (cleanPhone ? { phone: cleanPhone } : {}))
+            });
+            console.log(`✅ Toss Link: Account linked successfully for ${existingUserSession.username}`);
+            return res.redirect('/?toast=' + encodeURIComponent('TossLinkSuccess'));
+        }
+        // -------------------------------------------------------------
+        // 3. 기존 DB에서 유저 찾기 (userKey 기준)
+        const targetUsername = 'toss_' + userKeyStr;
+        const searchConditions = [{ username: targetUsername }];
+        if (cleanPhone)
+            searchConditions.push({ phone: cleanPhone });
+        let user = yield db_1.prisma.user.findFirst({
+            where: { OR: searchConditions }
         });
         // 4-A. 신규 유저 → 계정 생성 + selectedRole 부여
         if (!user) {
             const dummyPassword = Math.random().toString(36).slice(-8);
             const hashedPassword = yield bcrypt_1.default.hash(dummyPassword, 10);
-            const dummyEmail = `toss_${cleanPhone}@toss.login`;
+            const dummyEmail = `toss_${userKeyStr}@toss.login`;
             user = yield db_1.prisma.user.create({
                 data: {
                     username: targetUsername,
@@ -482,9 +527,9 @@ const handleTossCallback = (req, res) => __awaiter(void 0, void 0, void 0, funct
         }
         // Check subscription access for Web Landlords
         if (selectedRole === 'LANDLORD') {
-            const isSuperAdmin = user.username === 'wjsdudtns' || ((_f = user.roles) === null || _f === void 0 ? void 0 : _f.includes('ADMIN'));
+            const isSuperAdmin = user.username === 'wjsdudtns' || ((_d = user.roles) === null || _d === void 0 ? void 0 : _d.includes('ADMIN'));
             if (!isSuperAdmin && !user.isSubscribed) {
-                return res.redirect('/login?error=' + encodeURIComponent('PC 웹 버전은 프리미엄 구독자 전용입니다. 토스 앱에서 먼저 구독해 주세요.'));
+                return res.redirect('/?error=' + encodeURIComponent('PC 웹 버전은 프리미엄 구독자 전용입니다. 토스 앱에서 먼저 구독해 주세요.'));
             }
         }
         // 5. JWT 토큰 발급
@@ -501,19 +546,31 @@ const handleTossCallback = (req, res) => __awaiter(void 0, void 0, void 0, funct
             sameSite: 'strict',
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
-        // 6. 리다이렉트
-        const dest = selectedRole === 'TENANT' ? '/payment' : '/dashboard';
-        return res.redirect(dest);
+        // 6. 리다이렉트 (SPA 프론트엔드가 해시 토큰을 파싱할 수 있도록 처리)
+        return res.redirect(`/#access_token=${token}`);
     }
     catch (error) {
-        console.error('Toss Web Callback Error:', ((_g = error.response) === null || _g === void 0 ? void 0 : _g.data) || error.message);
-        res.redirect('/login?error=' + encodeURIComponent('토스 로그인 처리 중 서버 오류가 발생했습니다.'));
+        console.error('Toss Web Callback Error:', ((_e = error.response) === null || _e === void 0 ? void 0 : _e.data) || error.message);
+        res.redirect('/?error=' + encodeURIComponent('토스 로그인 처리 중 서버 오류가 발생했습니다.'));
     }
 });
 exports.handleTossCallback = handleTossCallback;
 const unlinkToss = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     // 토스 앱에서 "연결 끊기" 클릭 시 호출되는 웹훅 (Basic Auth 검증 필요)
     try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Basic ')) {
+            return res.status(401).json({ error: 'Unauthorized: Basic Auth header missing' });
+        }
+        const base64Credentials = authHeader.split(' ')[1];
+        const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+        // Toss Developer console webhook auth usually uses format `clientId:password` or just the configured password.
+        // We instructed the user to set the password to 'checkinhost'.
+        // Allow either 'checkinhost' or 'ANY_CLIENT_ID:checkinhost'.
+        if (!credentials.includes('checkinhost')) {
+            console.error('Toss Unlink Error: Invalid Basic Auth credentials');
+            return res.status(401).json({ error: 'Unauthorized: Invalid credentials' });
+        }
         const { userKey, accessToken } = req.body;
         console.log(`Toss Unlink Request received for userKey: ${userKey}`);
         // 필요하다면 여기서 DB 토큰 무효화 혹은 세션 제거 로직 실행

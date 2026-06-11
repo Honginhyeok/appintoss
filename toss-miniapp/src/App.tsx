@@ -116,13 +116,52 @@ function BottomNav() {
 }
 
 import { Board } from './pages/Board';
-
 import { WebGuide } from './pages/WebGuide';
+import { IAP } from '@apps-in-toss/web-framework';
+import { useEffect } from 'react';
+import { apiFetch } from './utils/env';
 
 /* ─── App Content ─── */
 function AppContent() {
   const { user } = useAuth();
   const defaultPath = user?.role === 'TENANT' ? '/payment' : '/dashboard';
+
+  useEffect(() => {
+    // [SDK 2.6.2 권장] 구매 복구 로직 연동
+    // 앱 초기화 시점에 미지급된 결제 건이 있는지 확인하고 지급 처리
+    async function recoverPendingOrders() {
+      try {
+        const result = await IAP.getPendingOrders();
+        if (!result?.orders?.length) return;
+
+        for (const order of result.orders) {
+          console.log('[IAP Recovery] 복구할 주문 발견:', order.orderId);
+          
+          // 백엔드에 구독 혜택 지급 요청 (UpgradeModal의 processProductGrant와 동일한 API)
+          const res = await apiFetch('/api/users/upgrade', {
+            method: 'POST',
+            body: JSON.stringify({ 
+              orderId: order.orderId, 
+              subscriptionId: (order as any).subscriptionId || order.orderId // subscriptionId가 없으면 orderId 임시사용 (토스 스펙 확인 필요)
+            }),
+          });
+          const data = await res.json();
+          
+          if (data.success) {
+            console.log('[IAP Recovery] 백엔드 지급 처리 완료, completeProductGrant 호출');
+            await IAP.completeProductGrant({ params: { orderId: order.orderId } });
+          }
+        }
+      } catch (err) {
+        console.error('[IAP Recovery] 구매 복구 중 오류:', err);
+      }
+    }
+    
+    // 유저가 로그인 된 상태(혹은 토스 미니앱 환경)일 때만 실행
+    if (user) {
+      recoverPendingOrders();
+    }
+  }, [user]);
 
   return (
     <div style={{

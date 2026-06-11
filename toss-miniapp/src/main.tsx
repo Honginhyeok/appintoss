@@ -9,8 +9,9 @@ try {
   new VConsole();
 } catch (e) { }
 
+console.log('Force deploy version 0.0.46');
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
   </StrictMode>,
-)
+);

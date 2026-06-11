@@ -26,7 +26,7 @@ interface AuthContextType {
 }
 
 interface LoginParams {
-  role: 'LANDLORD' | 'TENANT';
+  role: 'LANDLORD' | 'TENANT' | 'ADMIN';
   username?: string;
   password?: string;
   phone?: string;
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body.inToss = params.inToss;
       }
       
-      if (params.role === 'LANDLORD') {
+      if (params.role === 'LANDLORD' || params.role === 'ADMIN') {
         body.username = params.username || '';
         body.password = params.password || '';
       } else {

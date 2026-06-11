@@ -9,12 +9,11 @@ const router = Router();
 router.post('/upgrade', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user.id;
-    // req.body에 IAP.createSubscriptionPurchaseOrder에서 전달된 orderId, subscriptionId가 포함됨
-    // const { orderId, subscriptionId } = req.body;
+    const { orderId, subscriptionId } = req.body;
     
     await prisma.user.update({
       where: { id: userId },
-      data: { isSubscribed: true, subscriptionTier: 'PREMIUM' }
+      data: { isSubscribed: true, subscriptionTier: 'PREMIUM', tossSubscriptionId: subscriptionId }
     });
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -26,17 +25,56 @@ router.post('/toss/webhook/subscription', async (req, res) => {
     const payload = req.body;
     console.log('[TOSS IAP WEBHOOK] Received subscription event:', payload);
     
-    // TODO: payload(event)를 분석하여 해당 유저의 구독 갱신, 해지, 만료 등을 처리하는 로직 구현
-    // 예: if (payload.status === 'EXPIRED') { ... set isSubscribed: false }
+    const subscriptionId = payload.subscriptionId || payload.data?.subscriptionId;
+    const status = payload.status || payload.data?.status || payload.eventType;
+
+    if (subscriptionId) {
+      // 구독 해지, 만료, 정지 등의 상태일 경우
+      if (status === 'EXPIRED' || status === 'CANCELED' || status === 'TERMINATED' || status === 'SUBSCRIPTION_CANCELED' || status === 'SUBSCRIPTION_EXPIRED') {
+        await prisma.user.updateMany({
+          where: { tossSubscriptionId: subscriptionId },
+          data: { isSubscribed: false }
+        });
+        console.log(`[TOSS IAP WEBHOOK] Subscription ${subscriptionId} cancelled/expired.`);
+      } 
+      // 구독 갱신, 결제 성공 등 활성 상태일 경우
+      else if (status === 'ACTIVE' || status === 'SUCCESS' || status === 'RENEWED' || status === 'SUBSCRIPTION_PAYMENT_SUCCESS') {
+        await prisma.user.updateMany({
+          where: { tossSubscriptionId: subscriptionId },
+          data: { isSubscribed: true }
+        });
+        console.log(`[TOSS IAP WEBHOOK] Subscription ${subscriptionId} renewed/active.`);
+      }
+    }
     
+    // 웹훅 수신 성공 응답 (200 OK 반환해야 토스가 재시도하지 않음)
     res.status(200).send('OK');
   } catch (e: any) {
     console.error('[TOSS IAP WEBHOOK] Error:', e);
+    res.status(200).send('Error but acknowledged');
+  }
+});
+
+// ─── USER MANAGEMENT (ADMIN ONLY & SELF) ───────────────────────────
+
+// Set PIN/Password for currently logged in user
+router.put('/me/password', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user.id;
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: '비밀번호를 입력하세요' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword, plainPassword: password }
+    });
+    res.json({ success: true, message: '비밀번호가 성공적으로 설정되었습니다.' });
+  } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// ─── USER MANAGEMENT (ADMIN ONLY) ──────────────────────────────────
 router.use(authenticateToken, requireAdmin);
 
 // List all users
@@ -45,6 +83,7 @@ router.get('/', async (_req, res) => {
     const users = await prisma.user.findMany({
       select: { 
         id: true, name: true, username: true, roles: true, status: true, createdAt: true, plainPassword: true,
+        isSubscribed: true, subscriptionTier: true,
         landlord: { select: { id: true, name: true, username: true } },
         assignedRoom: { select: { id: true, name: true } }
       },
@@ -118,6 +157,20 @@ router.put('/:id/status', async (req: AuthenticatedRequest, res) => {
     if (req.user?.id === id) return res.status(400).json({ error: '자기 자신의 상태는 변경할 수 없습니다' });
 
     await prisma.user.update({ where: { id }, data: { status } });
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Toggle subscription status (admin)
+router.put('/:id/subscription', async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = String(req.params.id);
+    const { isSubscribed } = req.body;
+    
+    await prisma.user.update({ 
+      where: { id }, 
+      data: { isSubscribed, subscriptionTier: isSubscribed ? 'PREMIUM' : 'FREE' } 
+    });
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });

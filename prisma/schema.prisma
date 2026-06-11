@@ -106,7 +106,12 @@ model User {
   // --- SUBSCRIPTION INFO ---
   isSubscribed      Boolean       @default(false)
   subscriptionTier  String        @default("FREE")
+  tossSubscriptionId String?      @unique
   
+  // --- SECURITY & LOCKOUT ---
+  failedLoginAttempts Int       @default(0)
+  lockoutUntil      DateTime?
+
   invitations    Invitation[]
   announcements  Announcement[]
   maintenanceReq MaintenanceRequest[] @relation("TenantRequests")
@@ -216,4 +221,24 @@ model Comment {
   author    User     @relation("UserComments", fields: [authorId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model DailyBriefing {
+  id        String   @id @default(uuid())
+  date      String   // YYYY-MM-DD
+  hostId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@unique([date, hostId])
+}
+
+model AiTokenUsage {
+  id              String   @id @default(uuid())
+  date            String   // YYYY-MM-DD
+  hostId          String
+  promptTokens    Int
+  completionTokens Int
+  totalTokens     Int
+  createdAt       DateTime @default(now())
 }

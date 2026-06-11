@@ -8,7 +8,6 @@ import { NotificationUseCase } from '../domain/NotificationTemplate';
 import { prisma } from '../config/db';
 
 const router = Router();
-router.use(authenticateToken);
 
 const kakao = new KakaoAlimTalkProvider();
 const sms = new SMSProvider();
@@ -24,7 +23,7 @@ const TEMPLATE_LABELS: Record<string, string> = {
   MAINTENANCE_COMPLETED: '유지보수 완료 알림'
 };
 
-router.get('/logs', async (_req, res) => {
+router.get('/logs', authenticateToken, async (_req, res) => {
   try {
     const logs = await logger.getLogs();
     res.json(logs);
@@ -32,7 +31,7 @@ router.get('/logs', async (_req, res) => {
 });
 
 // POST /api/notify — 체크박스 기반 방 선택 일괄 발송
-router.post('/notify', async (req: AuthenticatedRequest, res) => {
+router.post('/notify', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const { targetType, roomIds, template } = req.body;
     const landlordId = req.user.id;

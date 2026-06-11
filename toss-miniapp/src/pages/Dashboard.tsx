@@ -26,20 +26,29 @@ export function Dashboard() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [briefing, setBriefing] = useState<string | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setBriefingLoading(true);
     try {
-      const [rRes, tRes, txRes] = await Promise.all([
+      const [rRes, tRes, txRes, bRes] = await Promise.all([
         apiFetch('/api/rooms'),
         apiFetch('/api/tenants'),
         apiFetch('/api/transactions'),
+        apiFetch('/api/host/daily-briefing'),
       ]);
       if (rRes.ok) setRooms(await rRes.json());
       if (tRes.ok) setTenants(await tRes.json());
       if (txRes.ok) setTxs(await txRes.json());
+      if (bRes.ok) {
+        const bData = await bRes.json();
+        if (bData.text) setBriefing(bData.text);
+      }
     } catch { /* */ }
     setLoading(false);
+    setBriefingLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -209,6 +218,43 @@ export function Dashboard() {
             </div>
           </>
         )}
+      </div>
+
+      {/* ─── AI 일일 브리핑 ─── */}
+      <div style={{ padding: '20px 20px 0' }}>
+        <div style={{
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
+          borderRadius: '16px',
+          padding: '20px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+          border: '1px solid #e2e8f0',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {/* 장식용 빛망울 효과 */}
+          <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '80px', height: '80px', background: 'radial-gradient(circle, rgba(49,130,246,0.1) 0%, rgba(255,255,255,0) 70%)', borderRadius: '50%' }} />
+          
+          <div style={{ fontSize: '16px', fontWeight: '800', color: '#1e293b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>✨</span> 오늘의 AI 브리핑
+          </div>
+          
+          {briefingLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <Skeleton h="16px" w="100%" />
+              <Skeleton h="16px" w="90%" />
+              <Skeleton h="16px" w="60%" />
+            </div>
+          ) : (
+            <div style={{ 
+              fontSize: '14px', 
+              color: '#475569', 
+              lineHeight: '1.6',
+              whiteSpace: 'pre-wrap'
+            }}>
+              {briefing || "불러오는 데 실패했습니다. 잠시 후 다시 시도해 주세요."}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ─── 빠른 액션 ─── */}

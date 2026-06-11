@@ -5,7 +5,8 @@ async function loadAllData() {
     loadRooms().catch(e => console.error('Rooms:', e)),
     loadTenants().catch(e => console.error('Tenants:', e)),
     loadTransactions().catch(e => console.error('Txs:', e)),
-    loadLogs().catch(e => console.error('Logs:', e))
+    loadLogs().catch(e => console.error('Logs:', e)),
+    loadAiBriefing().catch(e => console.error('AI:', e))
   ]);
   // Then execute summary which relies on globals (rooms)
   await loadSummary().catch(e => console.error('Summary:', e));
@@ -235,5 +236,21 @@ async function loadLogs() {
         <td style="color:var(--text-muted)">${l.sentAt ? fmtDate(l.sentAt) : '-'}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">발송 내역이 없습니다</td></tr>';
+  }
+}
+
+async function loadAiBriefing() {
+  const el = document.getElementById('ai-daily-briefing');
+  if (!el) return;
+  try {
+    const res = await api('/api/host/daily-briefing');
+    if (res && res.text) {
+      el.textContent = res.text;
+    } else {
+      el.textContent = "오늘은 브리핑할 내용이 없습니다.";
+    }
+  } catch (e) {
+    console.error('AI Briefing error:', e);
+    el.textContent = "AI 브리핑을 불러오지 못했습니다.";
   }
 }
