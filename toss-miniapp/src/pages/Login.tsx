@@ -277,18 +277,20 @@ export function Login() {
               </div>
             )}
 
-            <div style={{ textAlign: 'center', marginTop: '40px' }}>
-              <button
-                onClick={() => {
-                  setSelectedRole('ADMIN');
-                  setStep('admin-login');
-                  setError('');
-                }}
-                style={{ background: 'none', border: 'none', fontSize: '13px', color: '#b0b8c1', cursor: 'pointer', textDecoration: 'underline' }}
-              >
-                시스템 관리자 로그인
-              </button>
-            </div>
+            {!inToss && (
+              <div style={{ textAlign: 'center', marginTop: '40px' }}>
+                <button
+                  onClick={() => {
+                    setSelectedRole('ADMIN');
+                    setStep('admin-login');
+                    setError('');
+                  }}
+                  style={{ background: 'none', border: 'none', fontSize: '13px', color: '#b0b8c1', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  시스템 관리자 로그인
+                </button>
+              </div>
+            )}
           </div>
         )}
 
