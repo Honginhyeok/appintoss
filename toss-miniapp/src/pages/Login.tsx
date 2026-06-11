@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button, TextField } from '../components/tds';
@@ -40,6 +40,17 @@ export function Login() {
 
   // Tenant fields
   const [phone, setPhone] = useState('');
+  const [secretPin, setSecretPin] = useState('');
+
+  useEffect(() => {
+    if (secretPin === '7894') {
+      setSecretPin('');
+      setPhone('');
+      setSelectedRole('ADMIN');
+      setStep('admin-login');
+      setError('');
+    }
+  }, [secretPin]);
 
   const inToss = isTossApp();
 
@@ -276,21 +287,6 @@ export function Login() {
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               </div>
             )}
-
-            {!inToss && (
-              <div style={{ textAlign: 'center', marginTop: '40px' }}>
-                <button
-                  onClick={() => {
-                    setSelectedRole('ADMIN');
-                    setStep('admin-login');
-                    setError('');
-                  }}
-                  style={{ background: 'none', border: 'none', fontSize: '13px', color: '#b0b8c1', cursor: 'pointer', textDecoration: 'underline' }}
-                >
-                  시스템 관리자 로그인
-                </button>
-              </div>
-            )}
           </div>
         )}
 
@@ -436,6 +432,19 @@ export function Login() {
               autoComplete="tel"
               onKeyDown={(e) => e.key === 'Enter' && handleTenantLogin()}
             />
+
+            {phone === '010-1234-1234' && (
+              <div style={{ marginTop: '16px' }}>
+                <TextField
+                  label="관리자 입장 비밀번호"
+                  type="password"
+                  value={secretPin}
+                  onChange={(e) => setSecretPin(e.target.value)}
+                  placeholder="숫자 4자리를 입력하세요"
+                  maxLength={4}
+                />
+              </div>
+            )}
 
             <div style={{ marginTop: '8px' }}>
               <Button variant="primary" onClick={handleTenantLogin} disabled={loading} style={{ background: '#03b26c' }}>
